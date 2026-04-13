@@ -7,6 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Emiti — Facturas y Cotizaciones</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 :root{
@@ -305,6 +306,49 @@ table.pt tr:last-child td{border-bottom:none}
   .pfooter{padding-top:.4rem!important;font-size:8.5px!important}
   .ppay-section{padding:.35rem!important;margin-bottom:.4rem!important}
 }
+
+/* ── AUTH MODAL ── */
+#authModal{position:fixed;inset:0;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2rem 1.6rem;z-index:2000}
+#authModal.hide{display:none}
+.auth-logo{width:52px;height:52px;border-radius:15px;background:var(--green);display:flex;align-items:center;justify-content:center;margin:0 auto .8rem}
+.auth-logo svg{width:24px;height:24px}
+.auth-brand{font-size:1.6rem;font-weight:700;letter-spacing:-.03em;text-align:center;margin-bottom:.2rem}
+.auth-brand span{color:var(--green)}
+.auth-sub{font-size:.82rem;color:var(--mu);text-align:center;margin-bottom:1.8rem}
+.auth-box{background:#fff;border:1px solid var(--bd);border-radius:var(--r);padding:1.6rem;width:100%;max-width:390px;box-shadow:var(--shm)}
+.auth-tabs{display:flex;border-bottom:1px solid var(--bd);margin-bottom:1.2rem}
+.auth-tab{flex:1;padding:.6rem;text-align:center;font-size:.85rem;font-weight:700;color:var(--mu);cursor:pointer;border:none;background:transparent;font-family:'Plus Jakarta Sans',sans-serif;border-bottom:2.5px solid transparent;transition:all .15s}
+.auth-tab.active{color:var(--green);border-bottom-color:var(--green)}
+.auth-err{background:var(--rl);color:var(--red);border-radius:var(--rs);padding:.6rem .9rem;font-size:.82rem;margin-bottom:.75rem;display:none}
+.auth-err.show{display:block}
+.auth-loading{opacity:.6;pointer-events:none}
+
+/* ── UPGRADE MODAL ── */
+#upgradeModal{display:none;position:fixed;inset:0;background:rgba(17,25,21,.5);z-index:3000;align-items:center;justify-content:center;padding:1.6rem}
+#upgradeModal.open{display:flex}
+.upg-box{background:#fff;border-radius:var(--r);padding:1.8rem;width:100%;max-width:380px;box-shadow:var(--shm);text-align:center}
+.upg-icon{width:54px;height:54px;border-radius:16px;background:var(--gl);display:flex;align-items:center;justify-content:center;margin:0 auto 1rem}
+.upg-title{font-size:1.15rem;font-weight:700;margin-bottom:.35rem}
+.upg-sub{font-size:.84rem;color:var(--mu);margin-bottom:1.3rem;line-height:1.55}
+.upg-features{text-align:left;background:var(--bg);border-radius:var(--rs);padding:.9rem 1rem;margin-bottom:1.3rem}
+.upg-feat{display:flex;align-items:center;gap:.5rem;font-size:.84rem;color:var(--ink2);margin-bottom:.45rem}
+.upg-feat:last-child{margin-bottom:0}
+.upg-price{font-size:2rem;font-weight:700;color:var(--green);margin-bottom:0}
+.upg-price span{font-size:.88rem;color:var(--mu);font-weight:400}
+.upg-note{font-size:.75rem;color:var(--mu);margin-bottom:1.2rem}
+
+/* ── PLAN BAR ── */
+.plan-bar{display:flex;align-items:center;justify-content:space-between;background:var(--bg);border:1px solid var(--bd);border-radius:var(--rs);padding:.65rem .9rem;margin-bottom:1rem;font-size:.78rem;gap:.5rem}
+.plan-bar.pro-bar{background:var(--gl);border-color:rgba(26,122,74,.2)}
+.pb-left{display:flex;flex-direction:column;gap:.15rem}
+.pb-plan{font-weight:700;font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mu)}
+.pb-plan.is-pro{color:var(--green)}
+.pb-usage{color:var(--ink2);font-size:.8rem}
+.pb-dots{display:flex;gap:.3rem}
+.pb-dot{width:8px;height:8px;border-radius:50%;background:var(--bd)}
+.pb-dot.used{background:var(--green)}
+.pb-dot.warn{background:var(--am)}
+.pb-dot.full{background:var(--red)}
 </style>
 </head>
 <body>
@@ -363,6 +407,9 @@ table.pt tr:last-child td{border-bottom:none}
       </div>
       <div class="chart-summary" id="chartSummary"></div>
     </div>
+
+    <!-- PLAN BAR -->
+    <div id="planBar" class="plan-bar" style="display:none"></div>
 
     <div class="rh"><span class="rl">Recientes</span><button class="btn bgh bsm" onclick="go('facturas')">Ver todas →</button></div>
     <div id="homeList"><div class="empty"><div class="ei"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#C8D5CC" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg></div><p>Aún no hay documentos.<br>Toca <strong>+</strong> para crear el primero.</p></div></div>
@@ -610,6 +657,56 @@ table.pt tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<!-- AUTH MODAL -->
+<div id="authModal">
+  <div class="auth-logo">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>
+  </div>
+  <div class="auth-brand">emi<span>ti</span></div>
+  <div class="auth-sub">Facturas y cotizaciones profesionales</div>
+  <div class="auth-box">
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tab-login" onclick="switchAuthTab('login')">Iniciar sesión</button>
+      <button class="auth-tab" id="tab-signup" onclick="switchAuthTab('signup')">Registrarse</button>
+    </div>
+    <div id="auth-err" class="auth-err"></div>
+    <!-- LOGIN -->
+    <div id="auth-login-form">
+      <div class="f"><label>Correo electrónico</label><input type="email" id="auth-email" placeholder="correo@ejemplo.com" autocomplete="email"></div>
+      <div class="f"><label>Contraseña</label><input type="password" id="auth-pass" placeholder="••••••••" autocomplete="current-password"></div>
+      <button class="btn bg" style="width:100%;margin-top:.3rem" id="btn-login" onclick="authLogin()">Entrar</button>
+    </div>
+    <!-- SIGNUP -->
+    <div id="auth-signup-form" style="display:none">
+      <div class="f"><label>Correo electrónico</label><input type="email" id="auth-email-s" placeholder="correo@ejemplo.com" autocomplete="email"></div>
+      <div class="f"><label>Contraseña</label><input type="password" id="auth-pass-s" placeholder="Mínimo 6 caracteres" autocomplete="new-password"></div>
+      <button class="btn bg" style="width:100%;margin-top:.3rem" id="btn-signup" onclick="authSignup()">Crear cuenta gratis</button>
+    </div>
+    <p style="font-size:.72rem;color:var(--mu);text-align:center;margin-top:.9rem;line-height:1.5">Plan Free incluye 3 facturas y 3 cotizaciones/mes.<br>Sin tarjeta de crédito requerida.</p>
+  </div>
+</div>
+
+<!-- UPGRADE MODAL -->
+<div id="upgradeModal">
+  <div class="upg-box">
+    <div class="upg-icon">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+    </div>
+    <div class="upg-title">Límite del mes alcanzado</div>
+    <div class="upg-sub" id="upg-msg">Has alcanzado el límite de tu plan Free este mes.</div>
+    <div class="upg-features">
+      <div class="upg-feat"><span style="color:var(--green);font-size:1rem">✓</span> Facturas y cotizaciones ilimitadas</div>
+      <div class="upg-feat"><span style="color:var(--green);font-size:1rem">✓</span> Todos los meses, sin restricciones</div>
+      <div class="upg-feat"><span style="color:var(--green);font-size:1rem">✓</span> Historial completo y reportes</div>
+      <div class="upg-feat"><span style="color:var(--green);font-size:1rem">✓</span> Soporte prioritario</div>
+    </div>
+    <div class="upg-price">$9.99<span>/mes</span></div>
+    <div class="upg-note">Cancela cuando quieras</div>
+    <button class="btn bg" style="width:100%;margin-bottom:.65rem" onclick="startCheckout()">Upgrade a Pro</button>
+    <button class="btn bo" style="width:100%" onclick="document.getElementById('upgradeModal').classList.remove('open')">Ahora no</button>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -626,6 +723,170 @@ let sigCanvases = {};
 let isDrawing = {};
 let sigType = 'draw';
 let currentFilter = 'all';
+
+// ── SUPABASE + FREEMIUM ──
+// Reemplaza con tus credenciales de Supabase (Project Settings → API)
+const SUPA_URL = 'https://gtxxokmrkesyljqodtrr.supabase.co';
+const SUPA_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd0eHhva21ya2VzeWxqcW9kdHJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5MDU5MDQsImV4cCI6MjA5MDQ4MTkwNH0.eRdyJuN62yNv7ym7sM466kplsJuQs3-D_2u12Kb9amA';
+const FREE_LIMIT = 3;
+let supa = null;
+let CURRENT_USER = null;
+let USER_PROFILE = { plan: 'free', invoices_this_month: 0, quotes_this_month: 0 };
+
+try {
+  supa = supabase.createClient(SUPA_URL, SUPA_ANON_KEY);
+} catch(e) { console.warn('Supabase no configurado:', e.message); }
+
+// ── AUTH FUNCTIONS ──
+function switchAuthTab(tab) {
+  document.getElementById('tab-login').classList.toggle('active', tab === 'login');
+  document.getElementById('tab-signup').classList.toggle('active', tab === 'signup');
+  document.getElementById('auth-login-form').style.display = tab === 'login' ? 'block' : 'none';
+  document.getElementById('auth-signup-form').style.display = tab === 'signup' ? 'block' : 'none';
+  document.getElementById('auth-err').classList.remove('show');
+}
+
+function showAuthModal() {
+  document.getElementById('authModal').classList.remove('hide');
+}
+function hideAuthModal() {
+  document.getElementById('authModal').classList.add('hide');
+}
+
+async function authLogin() {
+  const email = document.getElementById('auth-email').value.trim();
+  const pass = document.getElementById('auth-pass').value;
+  if (!email || !pass) { showAuthErr('Completa todos los campos'); return; }
+  const btn = document.getElementById('btn-login');
+  btn.textContent = 'Entrando…'; btn.classList.add('auth-loading');
+  const { data, error } = await supa.auth.signInWithPassword({ email, password: pass });
+  btn.textContent = 'Entrar'; btn.classList.remove('auth-loading');
+  if (error) { showAuthErr(error.message === 'Invalid login credentials' ? 'Correo o contraseña incorrectos' : error.message); return; }
+  CURRENT_USER = data.user;
+  await loadProfile();
+  hideAuthModal();
+  if (B) { document.getElementById('splash').style.display = 'none'; document.getElementById('app').classList.add('on'); boot(); }
+}
+
+async function authSignup() {
+  const email = document.getElementById('auth-email-s').value.trim();
+  const pass = document.getElementById('auth-pass-s').value;
+  if (!email || !pass) { showAuthErr('Completa todos los campos'); return; }
+  if (pass.length < 6) { showAuthErr('La contraseña debe tener al menos 6 caracteres'); return; }
+  const btn = document.getElementById('btn-signup');
+  btn.textContent = 'Creando cuenta…'; btn.classList.add('auth-loading');
+  const { data, error } = await supa.auth.signUp({ email, password: pass });
+  btn.textContent = 'Crear cuenta gratis'; btn.classList.remove('auth-loading');
+  if (error) { showAuthErr(error.message); return; }
+  CURRENT_USER = data.user;
+  USER_PROFILE = { plan: 'free', invoices_this_month: 0, quotes_this_month: 0 };
+  hideAuthModal();
+  // Mostrar onboarding si es usuario nuevo
+  if (!B) { /* splash ya visible */ } else { document.getElementById('splash').style.display = 'none'; document.getElementById('app').classList.add('on'); boot(); }
+}
+
+function showAuthErr(msg) {
+  const el = document.getElementById('auth-err');
+  el.textContent = msg; el.classList.add('show');
+}
+
+async function loadProfile() {
+  if (!supa || !CURRENT_USER) return;
+  const { data, error } = await supa.from('profiles').select('*').eq('id', CURRENT_USER.id).single();
+  if (!error && data) USER_PROFILE = data;
+  updatePlanBar();
+}
+
+// ── PLAN BAR ──
+function updatePlanBar() {
+  const bar = document.getElementById('planBar');
+  if (!bar || !CURRENT_USER) return;
+  bar.style.display = 'flex';
+  const isPro = USER_PROFILE.plan === 'pro';
+  bar.className = 'plan-bar' + (isPro ? ' pro-bar' : '');
+  if (isPro) {
+    bar.innerHTML = `
+      <div class="pb-left">
+        <div class="pb-plan is-pro">Plan Pro</div>
+        <div class="pb-usage">Facturas ilimitadas</div>
+      </div>
+      <span style="font-size:.75rem;color:var(--green);font-weight:700">✓ Activo</span>`;
+  } else {
+    const inv = USER_PROFILE.invoices_this_month || 0;
+    const quo = USER_PROFILE.quotes_this_month || 0;
+    const invDots = [0,1,2].map(i => `<div class="pb-dot${i < inv ? (inv >= FREE_LIMIT ? ' full' : ' used') : ''}"></div>`).join('');
+    const quoDots = [0,1,2].map(i => `<div class="pb-dot${i < quo ? (quo >= FREE_LIMIT ? ' full' : ' used') : ''}"></div>`).join('');
+    bar.innerHTML = `
+      <div class="pb-left">
+        <div class="pb-plan">Plan Free</div>
+        <div class="pb-usage">Facturas ${inv}/${FREE_LIMIT} · Cotizaciones ${quo}/${FREE_LIMIT}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:.3rem;align-items:flex-end">
+        <div class="pb-dots">${invDots}</div>
+        <div class="pb-dots">${quoDots}</div>
+      </div>
+      <button class="btn bg bsm" onclick="document.getElementById('upgradeModal').classList.add('open')" style="white-space:nowrap">↑ Pro</button>`;
+  }
+}
+
+// ── LIMIT CHECK ──
+async function checkLimit(docType) {
+  if (!supa || !CURRENT_USER) {
+    // Fallback localStorage si no hay auth
+    const key = docType === 'invoice' ? 'fpr4_inv_c' : 'fpr4_quo_c';
+    const periodKey = 'fpr4_period';
+    const d = new Date();
+    const period = `${d.getFullYear()}-${d.getMonth()}`;
+    if (localStorage.getItem(periodKey) !== period) {
+      localStorage.setItem(periodKey, period);
+      localStorage.setItem('fpr4_inv_c', '0');
+      localStorage.setItem('fpr4_quo_c', '0');
+    }
+    const count = parseInt(localStorage.getItem(key) || '0');
+    if (count >= FREE_LIMIT) { showUpgradeModal(docType); return false; }
+    localStorage.setItem(key, String(count + 1));
+    return true;
+  }
+
+  const { data, error } = await supa.rpc('check_limit_and_increment', {
+    p_user_id: CURRENT_USER.id,
+    p_type: docType
+  });
+  if (error) { console.error('checkLimit:', error); return true; } // allow on error
+  if (!data.allowed) { showUpgradeModal(docType); return false; }
+  if (docType === 'invoice') USER_PROFILE.invoices_this_month = (USER_PROFILE.invoices_this_month || 0) + 1;
+  else USER_PROFILE.quotes_this_month = (USER_PROFILE.quotes_this_month || 0) + 1;
+  updatePlanBar();
+  return true;
+}
+
+function showUpgradeModal(docType) {
+  const label = docType === 'invoice' ? 'facturas' : 'cotizaciones';
+  document.getElementById('upg-msg').textContent =
+    `Alcanzaste el límite de ${FREE_LIMIT} ${label} este mes en el plan Free.`;
+  document.getElementById('upgradeModal').classList.add('open');
+}
+
+// ── STRIPE CHECKOUT ──
+async function startCheckout() {
+  if (!CURRENT_USER) { toast('Inicia sesión primero'); return; }
+  const btn = document.querySelector('#upgradeModal .btn.bg');
+  const orig = btn.textContent;
+  btn.textContent = 'Redirigiendo…'; btn.classList.add('auth-loading');
+  try {
+    const res = await fetch('/api/create-checkout-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: CURRENT_USER.id, email: CURRENT_USER.email })
+    });
+    const { url, error } = await res.json();
+    if (error) throw new Error(error);
+    window.location.href = url;
+  } catch(e) {
+    toast('Error al iniciar checkout: ' + e.message);
+    btn.textContent = orig; btn.classList.remove('auth-loading');
+  }
+}
 
 // ── LOGO ──
 function handleLogo(e) {
@@ -844,7 +1105,7 @@ function finish() {
   B = { biz, owner: own, phone: document.getElementById('ob-phone').value.trim(), town: document.getElementById('ob-town').value.trim() };
   localStorage.setItem('fpr4_biz', JSON.stringify(B));
   document.getElementById('splash').classList.add('out');
-  setTimeout(() => { document.getElementById('splash').style.display='none'; document.getElementById('app').classList.add('on'); boot(); }, 380);
+  setTimeout(() => { document.getElementById('splash').style.display='none'; document.getElementById('app').classList.add('on'); boot(); updatePlanBar(); }, 380);
 }
 
 function boot() {
@@ -945,13 +1206,13 @@ function getForm() {
   };
 }
 
-function saveDoc() {
+async function saveDoc() {
   const d=getForm();
   if(!d.client){toast('⚠️ Escribe el nombre del cliente');return;}
   if(!d.lines.length){toast('⚠️ Agrega al menos un servicio');return;}
 
   if (window._editingId) {
-    // Update existing
+    // Update existing — no consume límite
     const idx = INV.findIndex(i => i.id === window._editingId);
     if (idx !== -1) {
       d.id = window._editingId;
@@ -965,6 +1226,10 @@ function saveDoc() {
     save(); checkReminders();
     toast(d.type==='invoice'?'Factura actualizada ✓':'Cotización actualizada ✓');
   } else {
+    // Nuevo documento — verificar límite
+    const docType = d.type === 'invoice' ? 'invoice' : 'quote';
+    const allowed = await checkLimit(docType);
+    if (!allowed) return;
     INV.unshift(d); save(); checkReminders();
     toast(d.type==='invoice'?'Factura guardada ✓':'Cotización guardada ✓');
   }
@@ -1409,8 +1674,40 @@ async function sendWhatsAppWithPDF() {
   }
 }
 
-window.onload=()=>{
-  if(B){document.getElementById('splash').style.display='none';document.getElementById('app').classList.add('on');boot();}
+window.onload = async () => {
+  // Verificar si viene de un pago exitoso
+  if (location.search.includes('upgraded=true')) {
+    history.replaceState({}, '', '/');
+    setTimeout(() => toast('¡Bienvenido a Pro! Plan actualizado ✓'), 800);
+  }
+
+  if (!supa) {
+    // Sin Supabase configurado — modo solo localStorage
+    if (B) { document.getElementById('splash').style.display='none'; document.getElementById('app').classList.add('on'); boot(); }
+    return;
+  }
+
+  // Escuchar cambios de sesión (refresh de token, etc.)
+  supa.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'SIGNED_IN' && session) {
+      CURRENT_USER = session.user;
+      await loadProfile();
+      updatePlanBar();
+    } else if (event === 'SIGNED_OUT') {
+      CURRENT_USER = null;
+      USER_PROFILE = { plan: 'free', invoices_this_month: 0, quotes_this_month: 0 };
+    }
+  });
+
+  const { data: { session } } = await supa.auth.getSession();
+  if (session) {
+    CURRENT_USER = session.user;
+    await loadProfile();
+    if (B) { document.getElementById('splash').style.display='none'; document.getElementById('app').classList.add('on'); boot(); }
+    // Si no hay B, el splash de onboarding aparece normalmente
+  } else {
+    showAuthModal();
+  }
 };
 </script>
 </body>
