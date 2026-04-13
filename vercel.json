@@ -1,0 +1,5 @@
+{
+  "rewrites": [
+    { "source": "/invoice/:id", "destination": "/invoice.html" }
+  ]
+}

@@ -1215,6 +1215,7 @@ async function saveDoc() {
     const idx = INV.findIndex(i => i.id === window._editingId);
     if (idx !== -1) {
       d.id = window._editingId;
+      d.supaId = INV[idx].supaId; // Keep Supabase ID
       d.num = INV[idx].num; // Keep original number
       d.status = INV[idx].status; // Keep original status
       d.clientSig = INV[idx].clientSig; // Keep signature
@@ -1223,6 +1224,7 @@ async function saveDoc() {
     }
     window._editingId = null;
     save(); checkReminders();
+    syncInvToSupabase(d);
     toast(d.type==='invoice'?'Factura actualizada ✓':'Cotización actualizada ✓');
   } else {
     // Nuevo documento — verificar límite
@@ -1230,6 +1232,7 @@ async function saveDoc() {
     const allowed = await checkLimit(docType);
     if (!allowed) return;
     INV.unshift(d); save(); checkReminders();
+    syncInvToSupabase(d);
     toast(d.type==='invoice'?'Factura guardada ✓':'Cotización guardada ✓');
   }
   go('facturas');
@@ -1402,6 +1405,28 @@ function toggleStatus(id) {
   toast(i.status==='paid'?'Marcado como cobrado ✓':'Marcado como pendiente');
 }
 function save(){localStorage.setItem('fpr4_inv',JSON.stringify(INV));}
+
+async function syncInvToSupabase(inv) {
+  if (!supa || !CURRENT_USER) return;
+  const payload = {
+    slug: String(inv.id),
+    num: inv.num,
+    type: inv.type,
+    client: inv.client,
+    client_phone: inv.phone || null,
+    client_email: inv.email || null,
+    data: JSON.stringify({ inv, biz: B, logo: LOGO, payments: PAYMENTS })
+  };
+  if (inv.supaId) {
+    await supa.from('invoices').update(payload).eq('id', inv.supaId);
+  } else {
+    const { data, error } = await supa.from('invoices').insert(payload).select('id').single();
+    if (!error && data) {
+      inv.supaId = data.id;
+      save();
+    }
+  }
+}
 
 function filterDocs(filter, el) {
   currentFilter = filter;
@@ -1605,6 +1630,11 @@ function deleteInv() {
 
 // ── WHATSAPP + PDF ──
 
+function getShareLink(inv) {
+  const id = inv.supaId || inv.id;
+  return `https://emiti-app.vercel.app/invoice/${id}`;
+}
+
 function sendEmailWithPDF() {
   if (!CURRENT_INV) return;
   const inv = CURRENT_INV;
@@ -1612,7 +1642,7 @@ function sendEmailWithPDF() {
   const label = isEst ? 'cotización' : 'factura';
   const labelCap = label.charAt(0).toUpperCase() + label.slice(1);
   const subj = `${labelCap} ${inv.num} — ${B.biz}`;
-  const link = `https://emiti-app.vercel.app/invoice/${inv.id}`;
+  const link = getShareLink(inv);
   const body = `Estimado/a ${inv.client},\n\nAquí puede ver su ${label}:\n\n${link}\n\nGracias,\n${B.owner}\n${B.biz}${B.phone ? '\n' + B.phone : ''}`;
   window.open(`mailto:${inv.email||''}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`, '_blank');
   toast('Email abierto ✓');
@@ -1623,7 +1653,7 @@ function sendSMSWithPDF() {
   const inv = CURRENT_INV;
   const isEst = inv.type === 'estimate';
   const label = isEst ? 'cotización' : 'factura';
-  const link = `https://emiti-app.vercel.app/invoice/${inv.id}`;
+  const link = getShareLink(inv);
   const msg = `${B.biz}: Aquí puede ver su ${label}: ${link}`;
   window.open(`sms:${inv.phone||''}?body=${encodeURIComponent(msg)}`, '_blank');
   toast('SMS abierto ✓');
@@ -1635,7 +1665,7 @@ function sendWhatsAppWithPDF() {
   const ph = inv.phone ? '1' + inv.phone.replace(/\D/g, '') : '';
   const isEst = inv.type === 'estimate';
   const label = isEst ? 'cotización' : 'factura';
-  const link = `https://emiti-app.vercel.app/invoice/${inv.id}`;
+  const link = getShareLink(inv);
   const msg = `Hola ${inv.client}, aquí puede ver su *${label}* de *${B.biz}*:\n\n${link}`;
   window.open(`https://wa.me/${ph}?text=${encodeURIComponent(msg)}`, '_blank');
   toast('WhatsApp abierto ✓');

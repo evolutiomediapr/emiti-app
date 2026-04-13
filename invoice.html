@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#FFFFFF">
+<title>Documento — Emiti</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --green:#1A7A4A;--gm:#2A9D5C;--gl:#E8F5EE;--gxl:#F0FAF4;
+  --ink:#111915;--ink2:#374840;--mu:#7A8C82;--bd:#E2EAE5;--bd2:#EDF2EF;
+  --red:#C0392B;--rl:#FDECEA;--am:#B7791F;--al:#FEF3CD;--blue:#1D4ED8;--bl:#EEF2FF;
+  --r:14px;--rs:9px;
+  --sh:0 1px 2px rgba(17,25,21,.05),0 2px 8px rgba(17,25,21,.04);
+  --shm:0 4px 20px rgba(17,25,21,.09)
+}
+html,body{min-height:100%;background:#F6F8F6;color:var(--ink);font-family:'Plus Jakarta Sans',sans-serif;-webkit-font-smoothing:antialiased}
+
+/* ── LOADING / ERROR ── */
+#loading,#error-box{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:2rem;text-align:center;gap:1rem}
+.spin{width:36px;height:36px;border:3px solid var(--bd);border-top-color:var(--green);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#error-box{display:none}
+.err-icon{width:52px;height:52px;border-radius:50%;background:var(--rl);display:flex;align-items:center;justify-content:center}
+.err-icon svg{width:24px;height:24px;color:var(--red)}
+.err-title{font-size:1.1rem;font-weight:700;color:var(--ink)}
+.err-sub{font-size:.85rem;color:var(--mu);max-width:280px}
+.err-link{font-size:.82rem;color:var(--green);text-decoration:none;font-weight:600;margin-top:.5rem}
+
+/* ── WRAPPER ── */
+#doc-wrap{display:none;padding:1.5rem 1rem 3rem;max-width:640px;margin:0 auto}
+
+/* ── HEADER BADGE ── */
+.pub-badge{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.2rem}
+.pub-brand{display:flex;align-items:center;gap:.5rem;font-size:.82rem;font-weight:700;color:var(--mu)}
+.pub-brand svg{width:18px;height:18px;color:var(--green)}
+.pub-type-badge{font-size:.72rem;font-weight:700;padding:.28rem .7rem;border-radius:99px;letter-spacing:.03em;text-transform:uppercase}
+.pub-type-badge.invoice{background:var(--gl);color:var(--green)}
+.pub-type-badge.estimate{background:var(--bl);color:var(--blue)}
+
+/* ── DOCUMENT CARD ── */
+.doc-card{background:#fff;border:1px solid var(--bd);border-radius:var(--r);overflow:hidden;box-shadow:var(--shm)}
+
+/* ── HEADER ── */
+.dh{padding:1.4rem 1.4rem 1.2rem;border-bottom:1px solid var(--bd2);display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap}
+.dh-left{display:flex;flex-direction:column;gap:.25rem}
+.dlogo{max-height:48px;max-width:120px;object-fit:contain;display:block;margin-bottom:.35rem}
+.dbiz{font-size:1rem;font-weight:700;color:var(--ink)}
+.dinfo{font-size:.75rem;color:var(--mu);line-height:1.5}
+.dh-right{text-align:right;display:flex;flex-direction:column;gap:.2rem}
+.dword{font-size:1.15rem;font-weight:800;color:var(--green);letter-spacing:-.02em}
+.dnum{font-size:.82rem;font-weight:700;color:var(--ink2)}
+.ddate{font-size:.75rem;color:var(--mu)}
+.dtype-tag{display:inline-block;font-size:.65rem;font-weight:700;padding:.2rem .55rem;border-radius:99px;letter-spacing:.03em;text-transform:uppercase;margin-top:.1rem}
+.dtype-tag.invoice{background:var(--gl);color:var(--green)}
+.dtype-tag.estimate{background:var(--bl);color:var(--blue)}
+
+/* ── CLIENT ── */
+.dcl{padding:1rem 1.4rem;border-bottom:1px solid var(--bd2);background:var(--gxl)}
+.dcl .lbl{font-size:.68rem;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.25rem}
+.dcl .nm{font-size:.95rem;font-weight:700;color:var(--ink)}
+.dcl .inf{font-size:.75rem;color:var(--mu);line-height:1.6;margin-top:.2rem}
+
+/* ── TABLE ── */
+.dt-wrap{padding:1rem 1.4rem;border-bottom:1px solid var(--bd2);overflow-x:auto}
+table.dt{width:100%;border-collapse:collapse;font-size:.82rem}
+table.dt th{text-align:left;font-size:.65rem;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.04em;padding:.4rem .5rem .4rem 0;border-bottom:1px solid var(--bd)}
+table.dt th:not(:first-child){text-align:right}
+table.dt td{padding:.55rem .5rem .55rem 0;border-bottom:1px solid var(--bd2);vertical-align:top;color:var(--ink)}
+table.dt td:not(:first-child){text-align:right;white-space:nowrap;color:var(--ink2)}
+table.dt tr:last-child td{border-bottom:none}
+
+/* ── TOTALS ── */
+.dtots{padding:.8rem 1.4rem 1rem;border-bottom:1px solid var(--bd2)}
+.drow{display:flex;justify-content:space-between;font-size:.82rem;color:var(--ink2);padding:.18rem 0}
+.dgrand{display:flex;justify-content:space-between;font-size:1rem;font-weight:800;color:var(--ink);padding:.5rem 0 .2rem;border-top:2px solid var(--ink);margin-top:.4rem}
+
+/* ── NOTES ── */
+.dnotes{padding:.8rem 1.4rem;border-bottom:1px solid var(--bd2);font-size:.82rem;color:var(--ink2);line-height:1.6;background:#FAFCFB}
+
+/* ── PAY BUTTONS ── */
+.dpay{padding:.9rem 1.4rem;border-bottom:1px solid var(--bd2);display:flex;flex-wrap:wrap;gap:.5rem}
+.dpay-btn{display:inline-flex;align-items:center;gap:.4rem;padding:.5rem .9rem;border-radius:8px;font-size:.8rem;font-weight:700;text-decoration:none;font-family:'Plus Jakarta Sans',sans-serif}
+.dpay-btn.stripe{background:#635BFF;color:#fff}
+.dpay-btn.paypal{background:#003087;color:#fff}
+.dpay-btn.ath{background:#00A859;color:#fff}
+
+/* ── FOOTER ── */
+.dfooter{padding:.9rem 1.4rem;text-align:center;font-size:.72rem;color:var(--mu);line-height:1.8}
+
+/* ── STATUS ── */
+.dstatus{padding:.65rem 1.4rem;border-bottom:1px solid var(--bd2);display:flex;align-items:center;gap:.5rem;font-size:.78rem;font-weight:600}
+.dstatus.paid{background:#F0FAF4;color:var(--green)}
+.dstatus.pending{background:var(--al);color:var(--am)}
+.dstatus svg{width:14px;height:14px}
+
+@media print{
+  body{background:#fff}
+  #doc-wrap{padding:0;max-width:100%}
+  .pub-badge{display:none}
+  .doc-card{box-shadow:none;border:none}
+}
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spin"></div>
+  <div style="font-size:.85rem;color:var(--mu)">Cargando documento…</div>
+</div>
+
+<div id="error-box">
+  <div class="err-icon">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+  </div>
+  <div class="err-title">Documento no encontrado</div>
+  <div class="err-sub">Este enlace puede haber expirado o el documento no existe.</div>
+  <a href="https://emiti-app.vercel.app" class="err-link">← Ir a Emiti</a>
+</div>
+
+<div id="doc-wrap"></div>
+
+<script>
+const SUPA_URL = 'https://gtxxokmrkesyljqodtrr.supabase.co';
+const SUPA_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd0eHhva21ya2VzeWxqcW9kdHJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5MDU5MDQsImV4cCI6MjA5MDQ4MTkwNH0.eRdyJuN62yNv7ym7sM466kplsJuQs3-D_2u12Kb9amA';
+
+function fd(s) {
+  if (!s) return '';
+  const [y, m, d] = s.split('-');
+  const months = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  return `${parseInt(d)} ${months[parseInt(m)-1]} ${y}`;
+}
+
+function showError() {
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('error-box').style.display = 'flex';
+}
+
+function renderDoc(inv, biz, logo, payments) {
+  const isEst = inv.type === 'estimate';
+  const label = isEst ? 'Cotización' : 'Factura';
+
+  let payHtml = '';
+  if (payments) {
+    const btns = [];
+    if (payments.stripe) btns.push(`<a class="dpay-btn stripe" href="https://buy.stripe.com/${payments.stripe}" target="_blank">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>Pagar con tarjeta</a>`);
+    if (payments.paypal) btns.push(`<a class="dpay-btn paypal" href="https://paypal.me/${payments.paypal}" target="_blank">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11l5 5 5-5M7 6l5 5 5-5"/></svg>PayPal</a>`);
+    if (payments.ath) btns.push(`<a class="dpay-btn ath" href="https://www.athmovil.com/request/?type=1&businessUid=${payments.ath}" target="_blank">ATH Móvil</a>`);
+    if (btns.length) payHtml = `<div class="dpay">${btns.join('')}</div>`;
+  }
+
+  const statusLabel = inv.status === 'paid'
+    ? `<div class="dstatus paid"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pagada</div>`
+    : `<div class="dstatus pending"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Pendiente de pago</div>`;
+
+  const infoItems = [biz.owner, biz.phone, biz.town ? biz.town + ', PR' : ''].filter(Boolean);
+
+  const clientItems = [
+    inv.phone ? `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:3px"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.67A2 2 0 012 1h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>${inv.phone}` : '',
+    inv.email ? `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:3px"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="2,4 12,13 22,4"/></svg>${inv.email}` : '',
+    inv.addr ? `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:3px"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>${inv.addr}` : ''
+  ].filter(Boolean);
+
+  const rows = inv.lines.map(l => `
+    <tr>
+      <td>${l.desc}</td>
+      <td>${l.qty}</td>
+      <td>$${parseFloat(l.price).toFixed(2)}</td>
+      <td>$${(l.qty * l.price).toFixed(2)}</td>
+    </tr>`).join('');
+
+  const wrap = document.getElementById('doc-wrap');
+  wrap.innerHTML = `
+    <div class="pub-badge">
+      <div class="pub-brand">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>
+        Emiti
+      </div>
+      <span class="pub-type-badge ${isEst ? 'estimate' : 'invoice'}">${label}</span>
+    </div>
+
+    <div class="doc-card">
+      <div class="dh">
+        <div class="dh-left">
+          ${logo ? `<img src="${logo}" class="dlogo" alt="Logo">` : ''}
+          <div class="dbiz">${biz.biz || ''}</div>
+          ${infoItems.length ? `<div class="dinfo">${infoItems.join('<br>')}</div>` : ''}
+        </div>
+        <div class="dh-right">
+          <span class="dword">${label}</span>
+          <span class="dnum">${inv.num || ''}</span>
+          <span class="ddate">${fd(inv.date)}</span>
+          ${isEst && inv.validUntil ? `<span class="ddate">Válida hasta: ${fd(inv.validUntil)}</span>` : ''}
+          <span class="dtype-tag ${isEst ? 'estimate' : 'invoice'}">${label}</span>
+        </div>
+      </div>
+
+      <div class="dcl">
+        <div class="lbl">${isEst ? 'Cotización para' : 'Facturado a'}</div>
+        <div class="nm">${inv.client}</div>
+        ${clientItems.length ? `<div class="inf">${clientItems.join('<br>')}</div>` : ''}
+      </div>
+
+      ${statusLabel}
+
+      <div class="dt-wrap">
+        <table class="dt">
+          <thead>
+            <tr>
+              <th>Descripción</th>
+              <th style="text-align:right">Cant</th>
+              <th style="text-align:right">Precio</th>
+              <th style="text-align:right">Total</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+
+      <div class="dtots">
+        <div class="drow"><span>Subtotal</span><span>$${parseFloat(inv.sub||0).toFixed(2)}</span></div>
+        ${(inv.dsc||0) > 0 ? `<div class="drow"><span>Descuento</span><span>- $${parseFloat(inv.dsc).toFixed(2)}</span></div>` : ''}
+        ${(inv.ivu||0) > 0 ? `<div class="drow"><span>IVU (${inv.ivu}%)</span><span>$${parseFloat(inv.tax||0).toFixed(2)}</span></div>` : ''}
+        <div class="dgrand"><span>Total</span><span>$${parseFloat(inv.total||0).toFixed(2)}</span></div>
+      </div>
+
+      ${inv.notes ? `<div class="dnotes">${inv.notes}</div>` : ''}
+      ${payHtml}
+
+      <div class="dfooter">
+        Gracias por su preferencia.${biz.phone ? `<br>${biz.phone}` : ''}
+        <br><span style="font-size:.65rem">Generado con <a href="https://emiti-app.vercel.app" style="color:var(--green);text-decoration:none;font-weight:700">Emiti</a></span>
+      </div>
+    </div>
+  `;
+
+  document.title = `${label} ${inv.num} — ${biz.biz || 'Emiti'}`;
+  document.getElementById('loading').style.display = 'none';
+  wrap.style.display = 'block';
+}
+
+async function init() {
+  const parts = window.location.pathname.split('/');
+  const invoiceId = parts[parts.length - 1];
+
+  if (!invoiceId || isNaN(invoiceId)) { showError(); return; }
+
+  const supa = supabase.createClient(SUPA_URL, SUPA_ANON_KEY);
+
+  const { data, error } = await supa
+    .from('invoices')
+    .select('data')
+    .eq('id', invoiceId)
+    .single();
+
+  if (error || !data || !data.data) { showError(); return; }
+
+  let parsed;
+  try { parsed = JSON.parse(data.data); } catch { showError(); return; }
+
+  const { inv, biz, logo, payments } = parsed;
+  if (!inv || !biz) { showError(); return; }
+
+  renderDoc(inv, biz, logo || null, payments || null);
+}
+
+init();
+</script>
+</body>
+</html>
