@@ -312,8 +312,7 @@ table.pt tr:last-child td{border-bottom:none}
 #authModal.hide{display:none}
 .auth-logo{width:52px;height:52px;border-radius:15px;background:var(--green);display:flex;align-items:center;justify-content:center;margin:0 auto .8rem}
 .auth-logo svg{width:24px;height:24px}
-.auth-brand{font-size:1.6rem;font-weight:700;letter-spacing:-.03em;text-align:center;margin-bottom:.2rem}
-.auth-brand span{color:var(--green)}
+.auth-brand{font-size:1.6rem;font-weight:700;letter-spacing:-.03em;text-align:center;margin-bottom:.2rem;color:var(--green)}
 .auth-sub{font-size:.82rem;color:var(--mu);text-align:center;margin-bottom:1.8rem}
 .auth-box{background:#fff;border:1px solid var(--bd);border-radius:var(--r);padding:1.6rem;width:100%;max-width:390px;box-shadow:var(--shm)}
 .auth-tabs{display:flex;border-bottom:1px solid var(--bd);margin-bottom:1.2rem}
@@ -1606,72 +1605,39 @@ function deleteInv() {
 
 // ── WHATSAPP + PDF ──
 
-async function sendEmailWithPDF() {
+function sendEmailWithPDF() {
   if (!CURRENT_INV) return;
   const inv = CURRENT_INV;
   const isEst = inv.type === 'estimate';
   const label = isEst ? 'cotización' : 'factura';
-  toast('Generando enlace…');
-  try {
-    const payload = { ...inv, bizName: B.biz, bizOwner: B.owner, bizPhone: B.phone, bizTown: B.town, logo: LOGO, payments: PAYMENTS };
-    const res = await fetch('/api/save-invoice', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
-    if (!res.ok) throw new Error();
-    const { slug } = await res.json();
-    const link = `https://emiti-app.vercel.app/f/${slug}`;
-    const subj = `${label.charAt(0).toUpperCase()+label.slice(1)} ${inv.num} — ${B.biz}`;
-    const body = `Estimado/a ${inv.client},\n\nAdjunto encontrará su ${label}:\n\n${label.charAt(0).toUpperCase()+label.slice(1)}: ${inv.num}\nFecha: ${fd(inv.date)}\nTotal: $${inv.total.toFixed(2)}\n\nVer ${label} completa:\n${link}\n\nGracias,\n${B.owner}\n${B.biz}`;
-    window.open(`mailto:${inv.email||''}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`, '_blank');
-    toast('Email abierto ✓');
-  } catch(e) {
-    const href = document.getElementById('emailBtn').dataset.href;
-    if (href) window.open(href, '_blank');
-  }
+  const labelCap = label.charAt(0).toUpperCase() + label.slice(1);
+  const subj = `${labelCap} ${inv.num} — ${B.biz}`;
+  const body = `Estimado/a ${inv.client},\n\nAquí puede ver su ${label}:\n\n${labelCap}: ${inv.num}\nFecha: ${fd(inv.date)}\nTotal: $${inv.total.toFixed(2)}${inv.notes ? '\n\nNota: ' + inv.notes : ''}\n\nGracias,\n${B.owner}\n${B.biz}${B.phone ? '\n' + B.phone : ''}`;
+  window.open(`mailto:${inv.email||''}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`, '_blank');
+  toast('Email abierto ✓');
 }
 
-async function sendSMSWithPDF() {
+function sendSMSWithPDF() {
   if (!CURRENT_INV) return;
   const inv = CURRENT_INV;
   const isEst = inv.type === 'estimate';
   const label = isEst ? 'cotización' : 'factura';
-  toast('Generando enlace…');
-  try {
-    const payload = { ...inv, bizName: B.biz, bizOwner: B.owner, bizPhone: B.phone, bizTown: B.town, logo: LOGO, payments: PAYMENTS };
-    const res = await fetch('/api/save-invoice', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
-    if (!res.ok) throw new Error();
-    const { slug } = await res.json();
-    const link = `https://emiti-app.vercel.app/f/${slug}`;
-    const msg = `${B.biz}: Su ${label} ${inv.num} por $${inv.total.toFixed(2)}. Ver aquí: ${link}`;
-    window.open(`sms:${inv.phone||''}?body=${encodeURIComponent(msg)}`, '_blank');
-    toast('SMS abierto ✓');
-  } catch(e) {
-    const href = document.getElementById('smsBtn').dataset.href;
-    if (href) window.open(href, '_blank');
-  }
+  const msg = `${B.biz}: Aquí puede ver su ${label} ${inv.num} por $${inv.total.toFixed(2)}. Gracias por su preferencia.`;
+  window.open(`sms:${inv.phone||''}?body=${encodeURIComponent(msg)}`, '_blank');
+  toast('SMS abierto ✓');
 }
 
-async function sendWhatsAppWithPDF() {
+function sendWhatsAppWithPDF() {
   if (!CURRENT_INV) return;
   const inv = CURRENT_INV;
   const ph = inv.phone ? '1' + inv.phone.replace(/\D/g, '') : '';
   const isEst = inv.type === 'estimate';
   const label = isEst ? 'cotización' : 'factura';
-  toast('Generando enlace…');
-  try {
-    const payload = { ...inv, bizName: B.biz, bizOwner: B.owner, bizPhone: B.phone, bizTown: B.town, logo: LOGO, payments: PAYMENTS };
-    const res = await fetch('/api/save-invoice', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
-    if (!res.ok) throw new Error('Error al guardar');
-    const { slug } = await res.json();
-    const link = `https://emiti-app.vercel.app/f/${slug}`;
-    const msg = isEst
-      ? `Hola ${inv.client}, le envío su *cotización* de *${B.biz}*:\n\n📋 ${inv.num} — ${fd(inv.date)}\nTotal: *$${inv.total.toFixed(2)}*\n\n👉 Ver cotización completa:\n${link}\n\nGracias por su preferencia. 🔧`
-      : `Hola ${inv.client}, le envío su *factura* de *${B.biz}*:\n\n📋 ${inv.num} — ${fd(inv.date)}\nTotal: *$${inv.total.toFixed(2)}*\n\n👉 Ver factura completa:\n${link}\n\nGracias por su preferencia. 🔧`;
-    window.open(`https://wa.me/${ph}?text=${encodeURIComponent(msg)}`, '_blank');
-    toast('Enlace enviado por WhatsApp ✓');
-  } catch (e) {
-    const msg2 = `Hola ${inv.client}, le envío su ${label} de *${B.biz}*.\n\n📋 ${inv.num}\nTotal: *$${inv.total.toFixed(2)}*\n\nGracias por su preferencia. 🔧`;
-    window.open(`https://wa.me/${ph}?text=${encodeURIComponent(msg2)}`, '_blank');
-    toast('WhatsApp abierto ✓');
-  }
+  const msg = isEst
+    ? `Hola ${inv.client}, aquí puede ver su *cotización* de *${B.biz}*:\n\n📋 ${inv.num} — ${fd(inv.date)}\nTotal: *$${inv.total.toFixed(2)}*\n\nGracias por su preferencia.`
+    : `Hola ${inv.client}, aquí puede ver su *factura* de *${B.biz}*:\n\n📋 ${inv.num} — ${fd(inv.date)}\nTotal: *$${inv.total.toFixed(2)}*\n\nGracias por su preferencia.`;
+  window.open(`https://wa.me/${ph}?text=${encodeURIComponent(msg)}`, '_blank');
+  toast('WhatsApp abierto ✓');
 }
 
 window.onload = async () => {
