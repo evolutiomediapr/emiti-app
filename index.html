@@ -321,6 +321,10 @@ table.pt tr:last-child td{border-bottom:none}
 .auth-err{background:var(--rl);color:var(--red);border-radius:var(--rs);padding:.6rem .9rem;font-size:.82rem;margin-bottom:.75rem;display:none}
 .auth-err.show{display:block}
 .auth-loading{opacity:.6;pointer-events:none}
+.pw-wrap{position:relative}
+.pw-wrap input{padding-right:2.4rem}
+.pw-eye{position:absolute;right:.65rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;padding:.2rem;color:var(--mu);display:flex;align-items:center;line-height:1}
+.pw-eye:hover{color:var(--ink)}
 
 /* ── UPGRADE MODAL ── */
 #upgradeModal{display:none;position:fixed;inset:0;background:rgba(17,25,21,.5);z-index:3000;align-items:center;justify-content:center;padding:1.6rem}
@@ -673,13 +677,13 @@ table.pt tr:last-child td{border-bottom:none}
     <!-- LOGIN -->
     <div id="auth-login-form">
       <div class="f"><label>Correo electrónico</label><input type="email" id="auth-email" placeholder="correo@ejemplo.com" autocomplete="email"></div>
-      <div class="f"><label>Contraseña</label><input type="password" id="auth-pass" placeholder="••••••••" autocomplete="current-password"></div>
+      <div class="f"><label>Contraseña</label><div class="pw-wrap"><input type="password" id="auth-pass" placeholder="••••••••" autocomplete="current-password"><button type="button" class="pw-eye" onclick="togglePw('auth-pass',this)" tabindex="-1"><svg id="eye-auth-pass" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
       <button class="btn bg" style="width:100%;margin-top:.3rem" id="btn-login" onclick="authLogin()">Entrar</button>
     </div>
     <!-- SIGNUP -->
     <div id="auth-signup-form" style="display:none">
       <div class="f"><label>Correo electrónico</label><input type="email" id="auth-email-s" placeholder="correo@ejemplo.com" autocomplete="email"></div>
-      <div class="f"><label>Contraseña</label><input type="password" id="auth-pass-s" placeholder="Mínimo 6 caracteres" autocomplete="new-password"></div>
+      <div class="f"><label>Contraseña</label><div class="pw-wrap"><input type="password" id="auth-pass-s" placeholder="Mínimo 6 caracteres" autocomplete="new-password"><button type="button" class="pw-eye" onclick="togglePw('auth-pass-s',this)" tabindex="-1"><svg id="eye-auth-pass-s" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
       <button class="btn bg" style="width:100%;margin-top:.3rem" id="btn-signup" onclick="authSignup()">Crear cuenta gratis</button>
     </div>
     <p style="font-size:.72rem;color:var(--mu);text-align:center;margin-top:.9rem;line-height:1.5">Plan Free incluye 3 facturas y 3 cotizaciones/mes.<br>Sin tarjeta de crédito requerida.</p>
@@ -761,7 +765,7 @@ async function authLogin() {
   btn.textContent = 'Entrando…'; btn.classList.add('auth-loading');
   const { data, error } = await supa.auth.signInWithPassword({ email, password: pass });
   btn.textContent = 'Entrar'; btn.classList.remove('auth-loading');
-  if (error) { showAuthErr(error.message === 'Invalid login credentials' ? 'Correo o contraseña incorrectos' : error.message); return; }
+  if (error) { showAuthErr(error.message); return; }
   CURRENT_USER = data.user;
   await loadProfile();
   await syncAllInvToSupabase();
@@ -787,9 +791,32 @@ async function authSignup() {
   if (!B) { /* splash ya visible */ } else { document.getElementById('splash').style.display = 'none'; document.getElementById('app').classList.add('on'); boot(); }
 }
 
+function togglePw(inputId, btn) {
+  const input = document.getElementById(inputId);
+  const isHidden = input.type === 'password';
+  input.type = isHidden ? 'text' : 'password';
+  btn.innerHTML = isHidden
+    ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`
+    : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+}
+
+function translateAuthError(msg) {
+  if (!msg) return msg;
+  const m = msg.toLowerCase();
+  if (m.includes('rate limit') || m.includes('email rate limit') || m.includes('too many requests'))
+    return 'Demasiados intentos. Por favor espera unos minutos antes de intentarlo de nuevo.';
+  if (m.includes('invalid login credentials'))
+    return 'Correo o contraseña incorrectos';
+  if (m.includes('user already registered') || m.includes('already been registered'))
+    return 'Este correo ya tiene una cuenta. Inicia sesión.';
+  if (m.includes('password should be at least'))
+    return 'La contraseña debe tener al menos 6 caracteres';
+  return msg;
+}
+
 function showAuthErr(msg) {
   const el = document.getElementById('auth-err');
-  el.textContent = msg; el.classList.add('show');
+  el.textContent = translateAuthError(msg); el.classList.add('show');
 }
 
 async function loadProfile() {
