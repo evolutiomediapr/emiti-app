@@ -1408,6 +1408,8 @@ function save(){localStorage.setItem('fpr4_inv',JSON.stringify(INV));}
 
 async function syncInvToSupabase(inv) {
   if (!supa || !CURRENT_USER) return;
+  // Exclude logo from data to avoid large payload; fetch it separately on public page if needed
+  const logoThumb = LOGO ? LOGO.substring(0, 8) === 'data:ima' ? LOGO : null : null;
   const payload = {
     slug: String(inv.id),
     num: inv.num,
@@ -1418,12 +1420,17 @@ async function syncInvToSupabase(inv) {
     data: JSON.stringify({ inv, biz: B, logo: LOGO, payments: PAYMENTS })
   };
   if (inv.supaId) {
-    await supa.from('invoices').update(payload).eq('id', inv.supaId);
+    const { error } = await supa.from('invoices').update(payload).eq('id', inv.supaId);
+    if (error) console.error('[Emiti] Supabase update error:', error.message);
   } else {
     const { data, error } = await supa.from('invoices').insert(payload).select('id').single();
-    if (!error && data) {
+    if (error) {
+      console.error('[Emiti] Supabase insert error:', error.message, error);
+      toast('⚠️ No se pudo generar enlace para compartir');
+    } else if (data) {
       inv.supaId = data.id;
       save();
+      console.log('[Emiti] Synced → supaId:', inv.supaId);
     }
   }
 }
