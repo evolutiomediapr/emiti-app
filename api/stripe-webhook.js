@@ -37,6 +37,37 @@ module.exports = async (req, res) => {
 
   try {
     switch (event.type) {
+      // Pago de factura completado
+      case 'checkout.session.completed': {
+        const session = event.data.object;
+        const invoiceId = session.metadata?.supabase_invoice_id;
+        if (invoiceId && session.payment_status === 'paid') {
+          const { data: row, error: fetchErr } = await supabase
+            .from('invoices')
+            .select('data')
+            .eq('id', invoiceId)
+            .single();
+
+          if (fetchErr) {
+            console.error('Error fetching invoice:', fetchErr.message);
+            break;
+          }
+
+          if (row?.data) {
+            let parsed;
+            try { parsed = JSON.parse(row.data); } catch { break; }
+            parsed.inv.status = 'paid';
+            const { error: updateErr } = await supabase
+              .from('invoices')
+              .update({ data: JSON.stringify(parsed) })
+              .eq('id', invoiceId);
+            if (updateErr) console.error('Error updating invoice status:', updateErr.message);
+            else console.log(`Factura ${invoiceId} marcada como pagada`);
+          }
+        }
+        break;
+      }
+
       // Suscripción activada o actualizada
       case 'customer.subscription.created':
       case 'customer.subscription.updated':

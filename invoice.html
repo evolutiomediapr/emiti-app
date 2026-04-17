@@ -83,10 +83,18 @@ table.dt tr:last-child td{border-bottom:none}
 
 /* ── PAY BUTTONS ── */
 .dpay{padding:.9rem 1.4rem;border-bottom:1px solid var(--bd2);display:flex;flex-wrap:wrap;gap:.5rem}
-.dpay-btn{display:inline-flex;align-items:center;gap:.4rem;padding:.5rem .9rem;border-radius:8px;font-size:.8rem;font-weight:700;text-decoration:none;font-family:'Plus Jakarta Sans',sans-serif}
+.dpay-btn{display:inline-flex;align-items:center;gap:.4rem;padding:.5rem .9rem;border-radius:8px;font-size:.8rem;font-weight:700;text-decoration:none;font-family:'Plus Jakarta Sans',sans-serif;cursor:pointer;border:none}
 .dpay-btn.stripe{background:#635BFF;color:#fff}
+.dpay-btn.stripe:disabled{background:#A09CE8;cursor:not-allowed}
 .dpay-btn.paypal{background:#003087;color:#fff}
 .dpay-btn.ath{background:#00A859;color:#fff}
+
+/* ── PAID BANNER ── */
+.paid-banner{display:flex;align-items:center;gap:.75rem;background:#F0FAF4;border:1px solid rgba(26,122,74,.25);border-radius:var(--r);padding:1rem 1.2rem;margin-bottom:1.2rem}
+.paid-banner-icon{width:40px;height:40px;border-radius:50%;background:var(--green);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.paid-banner-icon svg{width:20px;height:20px;color:#fff}
+.paid-banner-title{font-size:.9rem;font-weight:700;color:var(--green)}
+.paid-banner-sub{font-size:.75rem;color:var(--ink2);margin-top:.1rem}
 
 /* ── FOOTER ── */
 .dfooter{padding:.9rem 1.4rem;text-align:center;font-size:.72rem;color:var(--mu);line-height:1.8}
@@ -127,6 +135,9 @@ table.dt tr:last-child td{border-bottom:none}
 const SUPA_URL = 'https://gtxxokmrkesyljqodtrr.supabase.co';
 const SUPA_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd0eHhva21ya2VzeWxqcW9kdHJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5MDU5MDQsImV4cCI6MjA5MDQ4MTkwNH0.eRdyJuN62yNv7ym7sM466kplsJuQs3-D_2u12Kb9amA';
 
+let CURRENT_INVOICE_ID = null;
+let CURRENT_INVOICE = null;
+
 function fd(s) {
   if (!s) return '';
   const [y, m, d] = s.split('-');
@@ -143,18 +154,20 @@ function renderDoc(inv, biz, logo, payments) {
   const isEst = inv.type === 'estimate';
   const label = isEst ? 'Cotización' : 'Factura';
 
+  const isPaid = inv.status === 'paid' || new URLSearchParams(window.location.search).get('paid') === '1';
+
   let payHtml = '';
-  if (payments) {
+  if (payments && !isPaid) {
     const btns = [];
-    if (payments.stripe) btns.push(`<a class="dpay-btn stripe" href="https://buy.stripe.com/${payments.stripe}" target="_blank">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>Pagar con tarjeta</a>`);
+    if (payments.stripe) btns.push(`<button class="dpay-btn stripe" id="stripe-pay-btn" onclick="startStripeCheckout()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>Pagar con tarjeta</button>`);
     if (payments.paypal) btns.push(`<a class="dpay-btn paypal" href="https://paypal.me/${payments.paypal}" target="_blank">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11l5 5 5-5M7 6l5 5 5-5"/></svg>PayPal</a>`);
     if (payments.ath) btns.push(`<a class="dpay-btn ath" href="https://www.athmovil.com/request/?type=1&businessUid=${payments.ath}" target="_blank">ATH Móvil</a>`);
     if (btns.length) payHtml = `<div class="dpay">${btns.join('')}</div>`;
   }
 
-  const statusLabel = inv.status === 'paid'
+  const statusLabel = isPaid
     ? `<div class="dstatus paid"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pagada</div>`
     : `<div class="dstatus pending"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Pendiente de pago</div>`;
 
@@ -183,6 +196,17 @@ function renderDoc(inv, biz, logo, payments) {
       </div>
       <span class="pub-type-badge ${isEst ? 'estimate' : 'invoice'}">${label}</span>
     </div>
+
+    ${isPaid && new URLSearchParams(window.location.search).get('paid') === '1' ? `
+    <div class="paid-banner">
+      <div class="paid-banner-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <div>
+        <div class="paid-banner-title">Pago recibido — ¡Gracias!</div>
+        <div class="paid-banner-sub">Tu pago fue procesado exitosamente. El negocio ha sido notificado.</div>
+      </div>
+    </div>` : ''}
 
     <div class="doc-card">
       <div class="dh">
@@ -244,11 +268,37 @@ function renderDoc(inv, biz, logo, payments) {
   wrap.style.display = 'block';
 }
 
+async function startStripeCheckout() {
+  const btn = document.getElementById('stripe-pay-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Redirigiendo…'; }
+  try {
+    const label = CURRENT_INVOICE.type === 'estimate' ? 'Cotización' : 'Factura';
+    const res = await fetch('/api/pay-invoice', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        invoiceId: CURRENT_INVOICE_ID,
+        amount: CURRENT_INVOICE.total,
+        description: `${label} ${CURRENT_INVOICE.num || ''}`.trim(),
+        clientEmail: CURRENT_INVOICE.email || ''
+      })
+    });
+    const { url, error } = await res.json();
+    if (error) throw new Error(error);
+    window.location.href = url;
+  } catch(e) {
+    alert('Error al procesar pago: ' + e.message);
+    if (btn) { btn.disabled = false; btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>Pagar con tarjeta'; }
+  }
+}
+
 async function init() {
   const parts = window.location.pathname.split('/');
   const invoiceId = parts[parts.length - 1];
 
   if (!invoiceId || isNaN(invoiceId)) { showError(); return; }
+
+  CURRENT_INVOICE_ID = invoiceId;
 
   const supa = supabase.createClient(SUPA_URL, SUPA_ANON_KEY);
 
@@ -266,6 +316,7 @@ async function init() {
   const { inv, biz, logo, payments } = parsed;
   if (!inv || !biz) { showError(); return; }
 
+  CURRENT_INVOICE = inv;
   renderDoc(inv, biz, logo || null, payments || null);
 }
 
