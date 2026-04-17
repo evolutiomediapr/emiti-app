@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#FFFFFF">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Emiti — Facturas y Cotizaciones</title>
@@ -72,12 +72,12 @@ textarea{resize:vertical;min-height:66px;line-height:1.5}
 .notif-dot.has-notif::after{display:flex}
 
 /* PAGES */
-.page{display:none;flex:1;padding:1.2rem;background:#fff;animation:pgIn .25s ease both}
+.page{display:none;flex:1;padding:1.2rem;padding-bottom:calc(1.2rem + env(safe-area-inset-bottom,0px));background:#fff;animation:pgIn .25s ease both}
 .page.active{display:block}
 @keyframes pgIn{from{opacity:0;transform:translateY(5px)}}
 
 /* NAV */
-.nav{background:#fff;border-top:1px solid var(--bd);display:flex;position:sticky;bottom:0;z-index:200}
+.nav{background:#fff;border-top:1px solid var(--bd);display:flex;position:sticky;bottom:0;z-index:200;padding-bottom:env(safe-area-inset-bottom,0)}
 .nb{flex:1;display:flex;flex-direction:column;align-items:center;padding:.6rem .3rem;gap:.15rem;cursor:pointer;border:none;background:transparent;color:var(--mu);font-size:.58rem;font-weight:600;font-family:'Plus Jakarta Sans',sans-serif;transition:color .15s;text-transform:uppercase;letter-spacing:.03em;position:relative}
 .nb .ic{font-size:0;line-height:1;display:flex;align-items:center;justify-content:center}
 .nb.active{color:var(--green)}
@@ -85,7 +85,7 @@ textarea{resize:vertical;min-height:66px;line-height:1.5}
 .nb-badge.show{display:block}
 
 /* FAB */
-.fab{position:fixed;bottom:72px;right:1.2rem;width:50px;height:50px;border-radius:50%;background:var(--green);border:none;color:#fff;font-size:1.5rem;cursor:pointer;z-index:199;box-shadow:0 4px 16px rgba(26,122,74,.35);display:flex;align-items:center;justify-content:center;transition:transform .15s}
+.fab{position:fixed;bottom:calc(72px + env(safe-area-inset-bottom,0px));right:1.2rem;width:50px;height:50px;border-radius:50%;background:var(--green);border:none;color:#fff;font-size:1.5rem;cursor:pointer;z-index:199;box-shadow:0 4px 16px rgba(26,122,74,.35);display:flex;align-items:center;justify-content:center;transition:transform .15s}
 .fab:hover{transform:scale(1.07)}
 
 /* DASHBOARD */
@@ -1296,9 +1296,10 @@ async function saveDoc() {
       }
       window._editingId = null;
       save(); checkReminders();
-      console.log('[saveDoc] actualizando en Supabase…');
-      await syncInvToSupabase(d);
       toast(d.type==='invoice'?'Factura actualizada ✓':'Cotización actualizada ✓');
+      go('facturas');
+      // Sync en background — no bloquea la UI
+      syncInvToSupabase(d).then(() => save()).catch(e => console.warn('[saveDoc] update sync error:', e));
     } else {
       // Nuevo documento — verificar límite
       const docType = d.type === 'invoice' ? 'invoice' : 'quote';
@@ -1306,15 +1307,14 @@ async function saveDoc() {
       const allowed = await checkLimit(docType);
       console.log('[saveDoc] checkLimit resultado:', allowed);
       if (!allowed) return;
+      // Guardar localmente primero — feedback inmediato sin depender de red
       INV.unshift(d); save(); checkReminders();
-      console.log('[saveDoc] guardado en localStorage, sincronizando a Supabase…');
-      await syncInvToSupabase(d);
-      // supaId ya fue asignado dentro de syncInvToSupabase — persistir
-      save();
-      console.log('[saveDoc] sync completo, supaId:', d.supaId);
       toast(d.type==='invoice'?'Factura guardada ✓':'Cotización guardada ✓');
+      go('facturas');
+      // Sync a Supabase en background — persiste supaId cuando completa
+      syncInvToSupabase(d).then(() => { save(); console.log('[saveDoc] sync OK, supaId:', d.supaId); })
+                          .catch(e => console.warn('[saveDoc] insert sync error:', e));
     }
-    go('facturas');
   } catch (e) {
     console.error('[saveDoc] ERROR:', e);
     toast('⚠️ Error al guardar: ' + (e.message || e));
@@ -1506,6 +1506,7 @@ function updateTopbarAuth() {
 async function syncInvToSupabase(inv) {
   if (!supa) { console.warn('[sync] supa no disponible'); return; }
   console.log('[sync] iniciando para inv.id:', inv.id, 'supaId existente:', inv.supaId);
+  const timeout = new Promise((_, r) => setTimeout(() => r(new Error('sync timeout')), 10000));
   const payload = {
     slug: String(inv.id),
     num: inv.num,
@@ -1515,21 +1516,30 @@ async function syncInvToSupabase(inv) {
     client_email: inv.email || null,
     data: JSON.stringify({ inv, biz: B, logo: LOGO, payments: PAYMENTS })
   };
-  if (inv.supaId) {
-    console.log('[sync] actualizando row existente:', inv.supaId);
-    const { error } = await supa.from('invoices').update(payload).eq('id', inv.supaId);
-    if (error) console.error('[sync] update error:', error.message, error);
-    else console.log('[sync] update OK');
-  } else {
-    console.log('[sync] insertando nueva row…');
-    const { data, error } = await supa.from('invoices').insert(payload).select('id').single();
-    if (error) {
-      console.error('[sync] insert error:', error.message, error);
-      toast('⚠️ No se pudo generar enlace para compartir');
-    } else if (data) {
-      inv.supaId = data.id;
-      console.log('[sync] insert OK → supaId:', inv.supaId);
+  try {
+    if (inv.supaId) {
+      console.log('[sync] actualizando row existente:', inv.supaId);
+      const { error } = await Promise.race([
+        supa.from('invoices').update(payload).eq('id', inv.supaId),
+        timeout
+      ]);
+      if (error) console.error('[sync] update error:', error.message, error);
+      else console.log('[sync] update OK');
+    } else {
+      console.log('[sync] insertando nueva row…');
+      const { data, error } = await Promise.race([
+        supa.from('invoices').insert(payload).select('id').single(),
+        timeout
+      ]);
+      if (error) {
+        console.error('[sync] insert error:', error.message, error);
+      } else if (data) {
+        inv.supaId = data.id;
+        console.log('[sync] insert OK → supaId:', inv.supaId);
+      }
     }
+  } catch (e) {
+    console.warn('[sync] excepción (posible timeout):', e.message);
   }
 }
 
