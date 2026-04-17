@@ -737,8 +737,21 @@ let supa = null;
 let CURRENT_USER = null;
 let USER_PROFILE = { plan: 'free', invoices_this_month: 0, quotes_this_month: 0 };
 
+// fetch con timeout global — evita que requests cuelguen indefinidamente en móvil
+function fetchWithTimeout(timeout) {
+  return (url, opts = {}) => {
+    const ctrl = new AbortController();
+    const id = setTimeout(() => ctrl.abort(), timeout);
+    return fetch(url, { ...opts, signal: ctrl.signal })
+      .finally(() => clearTimeout(id));
+  };
+}
+
 try {
-  supa = supabase.createClient(SUPA_URL, SUPA_ANON_KEY);
+  supa = supabase.createClient(SUPA_URL, SUPA_ANON_KEY, {
+    global: { fetch: fetchWithTimeout(20000) }, // 20s timeout para todas las llamadas
+    auth: { persistSession: true, autoRefreshToken: true },
+  });
 } catch(e) { console.warn('Supabase no configurado:', e.message); }
 
 // ── AUTH FUNCTIONS ──
@@ -769,7 +782,7 @@ async function authLogin() {
   try {
     // Timeout de 15s para detectar si GoTrue cuelga
     const timeout = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Tiempo de espera agotado. Verifica tu conexión e intenta de nuevo.')), 15000)
+      setTimeout(() => reject(new Error('Conexión lenta. Verifica tu señal e intenta de nuevo.')), 30000)
     );
 
     console.log('[Auth] Iniciando signInWithPassword…');
