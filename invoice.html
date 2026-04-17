@@ -296,17 +296,20 @@ async function init() {
   const parts = window.location.pathname.split('/');
   const invoiceId = parts[parts.length - 1];
 
-  if (!invoiceId || isNaN(invoiceId)) { showError(); return; }
+  if (!invoiceId) { showError(); return; }
 
   CURRENT_INVOICE_ID = invoiceId;
 
   const supa = supabase.createClient(SUPA_URL, SUPA_ANON_KEY);
 
-  const { data, error } = await supa
-    .from('invoices')
-    .select('data')
-    .eq('id', invoiceId)
-    .single();
+  // UUID format = supaId (36 chars with dashes); numeric = legacy local id → query by slug
+  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(invoiceId);
+
+  const query = isUUID
+    ? supa.from('invoices').select('data').eq('id', invoiceId).single()
+    : supa.from('invoices').select('data').eq('slug', invoiceId).single();
+
+  const { data, error } = await query;
 
   if (error || !data || !data.data) { showError(); return; }
 

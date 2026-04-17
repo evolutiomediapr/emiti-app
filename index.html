@@ -1536,8 +1536,12 @@ async function syncInvToSupabase(inv) {
         supa.from('invoices').update(payload).eq('id', inv.supaId),
         timeout
       ]);
-      if (error) console.error('[sync] update error:', error.message, error);
-      else console.log('[sync] update OK');
+      if (error) {
+        console.error('[sync] update error:', error.message, error);
+        alert('⚠️ DEBUG sync update error:\n' + error.message);
+      } else {
+        console.log('[sync] update OK');
+      }
     } else {
       console.log('[sync] insertando nueva row…');
       const { data, error } = await Promise.race([
@@ -1546,13 +1550,18 @@ async function syncInvToSupabase(inv) {
       ]);
       if (error) {
         console.error('[sync] insert error:', error.message, error);
+        alert('⚠️ DEBUG sync insert error:\n' + error.message + '\n\nsupa URL: ' + SUPA_URL + '\nuser: ' + (CURRENT_USER?.id || 'null') + '\nanon: ' + CURRENT_USER?.is_anonymous);
       } else if (data) {
         inv.supaId = data.id;
         console.log('[sync] insert OK → supaId:', inv.supaId);
+        alert('✅ DEBUG sync OK\nsupaId: ' + inv.supaId + '\nEnlace: /invoice/' + inv.supaId);
+      } else {
+        alert('⚠️ DEBUG sync: sin error pero data es null');
       }
     }
   } catch (e) {
-    console.warn('[sync] excepción (posible timeout):', e.message);
+    console.warn('[sync] excepción:', e.message);
+    alert('⚠️ DEBUG sync excepción:\n' + e.message);
   }
 }
 
