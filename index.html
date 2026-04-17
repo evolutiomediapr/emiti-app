@@ -912,12 +912,17 @@ async function checkLimit(docType) {
     return true;
   }
 
+  console.log('[checkLimit] llamando RPC para user:', CURRENT_USER.id, 'type:', docType);
   const { data, error } = await supa.rpc('check_limit_and_increment', {
     p_user_id: CURRENT_USER.id,
     p_type: docType
   });
-  if (error) { console.error('checkLimit:', error); return true; } // allow on error
-  if (!data.allowed) { showUpgradeModal(docType); return false; }
+  console.log('[checkLimit] RPC resultado:', { data, error: error?.message });
+  if (error) { console.error('[checkLimit] error RPC:', error); return true; } // allow on error
+  if (!data || !data.allowed) {
+    console.log('[checkLimit] no permitido, razón:', data?.reason);
+    showUpgradeModal(docType); return false;
+  }
   if (docType === 'invoice') USER_PROFILE.invoices_this_month = (USER_PROFILE.invoices_this_month || 0) + 1;
   else USER_PROFILE.quotes_this_month = (USER_PROFILE.quotes_this_month || 0) + 1;
   updatePlanBar();
@@ -1271,36 +1276,49 @@ function getForm() {
 }
 
 async function saveDoc() {
+  console.log('[saveDoc] inicio, CURRENT_USER:', CURRENT_USER?.id, 'is_anonymous:', CURRENT_USER?.is_anonymous);
   const d=getForm();
   if(!d.client){toast('⚠️ Escribe el nombre del cliente');return;}
   if(!d.lines.length){toast('⚠️ Agrega al menos un servicio');return;}
 
-  if (window._editingId) {
-    // Update existing — no consume límite
-    const idx = INV.findIndex(i => i.id === window._editingId);
-    if (idx !== -1) {
-      d.id = window._editingId;
-      d.supaId = INV[idx].supaId; // Keep Supabase ID
-      d.num = INV[idx].num; // Keep original number
-      d.status = INV[idx].status; // Keep original status
-      d.clientSig = INV[idx].clientSig; // Keep signature
-      d.clientSigDate = INV[idx].clientSigDate;
-      INV[idx] = d;
+  try {
+    if (window._editingId) {
+      // Update existing — no consume límite
+      const idx = INV.findIndex(i => i.id === window._editingId);
+      if (idx !== -1) {
+        d.id = window._editingId;
+        d.supaId = INV[idx].supaId; // Keep Supabase ID
+        d.num = INV[idx].num; // Keep original number
+        d.status = INV[idx].status; // Keep original status
+        d.clientSig = INV[idx].clientSig; // Keep signature
+        d.clientSigDate = INV[idx].clientSigDate;
+        INV[idx] = d;
+      }
+      window._editingId = null;
+      save(); checkReminders();
+      console.log('[saveDoc] actualizando en Supabase…');
+      await syncInvToSupabase(d);
+      toast(d.type==='invoice'?'Factura actualizada ✓':'Cotización actualizada ✓');
+    } else {
+      // Nuevo documento — verificar límite
+      const docType = d.type === 'invoice' ? 'invoice' : 'quote';
+      console.log('[saveDoc] checkLimit para docType:', docType);
+      const allowed = await checkLimit(docType);
+      console.log('[saveDoc] checkLimit resultado:', allowed);
+      if (!allowed) return;
+      INV.unshift(d); save(); checkReminders();
+      console.log('[saveDoc] guardado en localStorage, sincronizando a Supabase…');
+      await syncInvToSupabase(d);
+      // supaId ya fue asignado dentro de syncInvToSupabase — persistir
+      save();
+      console.log('[saveDoc] sync completo, supaId:', d.supaId);
+      toast(d.type==='invoice'?'Factura guardada ✓':'Cotización guardada ✓');
     }
-    window._editingId = null;
-    save(); checkReminders();
-    syncInvToSupabase(d);
-    toast(d.type==='invoice'?'Factura actualizada ✓':'Cotización actualizada ✓');
-  } else {
-    // Nuevo documento — verificar límite
-    const docType = d.type === 'invoice' ? 'invoice' : 'quote';
-    const allowed = await checkLimit(docType);
-    if (!allowed) return;
-    INV.unshift(d); save(); checkReminders();
-    syncInvToSupabase(d);
-    toast(d.type==='invoice'?'Factura guardada ✓':'Cotización guardada ✓');
+    go('facturas');
+  } catch (e) {
+    console.error('[saveDoc] ERROR:', e);
+    toast('⚠️ Error al guardar: ' + (e.message || e));
   }
-  go('facturas');
 }
 
 function prevCur() {
@@ -1486,9 +1504,8 @@ function updateTopbarAuth() {
 }
 
 async function syncInvToSupabase(inv) {
-  if (!supa) return; // RLS deshabilitado — anon key puede leer/escribir
-  // Exclude logo from data to avoid large payload; fetch it separately on public page if needed
-  const logoThumb = LOGO ? LOGO.substring(0, 8) === 'data:ima' ? LOGO : null : null;
+  if (!supa) { console.warn('[sync] supa no disponible'); return; }
+  console.log('[sync] iniciando para inv.id:', inv.id, 'supaId existente:', inv.supaId);
   const payload = {
     slug: String(inv.id),
     num: inv.num,
@@ -1499,17 +1516,19 @@ async function syncInvToSupabase(inv) {
     data: JSON.stringify({ inv, biz: B, logo: LOGO, payments: PAYMENTS })
   };
   if (inv.supaId) {
+    console.log('[sync] actualizando row existente:', inv.supaId);
     const { error } = await supa.from('invoices').update(payload).eq('id', inv.supaId);
-    if (error) console.error('[Emiti] Supabase update error:', error.message);
+    if (error) console.error('[sync] update error:', error.message, error);
+    else console.log('[sync] update OK');
   } else {
+    console.log('[sync] insertando nueva row…');
     const { data, error } = await supa.from('invoices').insert(payload).select('id').single();
     if (error) {
-      console.error('[Emiti] Supabase insert error:', error.message, error);
+      console.error('[sync] insert error:', error.message, error);
       toast('⚠️ No se pudo generar enlace para compartir');
     } else if (data) {
       inv.supaId = data.id;
-      save();
-      console.log('[Emiti] Synced → supaId:', inv.supaId);
+      console.log('[sync] insert OK → supaId:', inv.supaId);
     }
   }
 }
