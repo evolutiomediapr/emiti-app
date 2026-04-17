@@ -763,14 +763,49 @@ async function authLogin() {
   if (!email || !pass) { showAuthErr('Completa todos los campos'); return; }
   const btn = document.getElementById('btn-login');
   btn.textContent = 'Entrando…'; btn.classList.add('auth-loading');
-  const { data, error } = await supa.auth.signInWithPassword({ email, password: pass });
-  btn.textContent = 'Entrar'; btn.classList.remove('auth-loading');
-  if (error) { showAuthErr(error.message); return; }
-  CURRENT_USER = data.user;
-  await loadProfile();
-  await syncAllInvToSupabase();
-  hideAuthModal();
-  if (B) { document.getElementById('splash').style.display = 'none'; document.getElementById('app').classList.add('on'); boot(); }
+
+  const resetBtn = () => { btn.textContent = 'Entrar'; btn.classList.remove('auth-loading'); };
+
+  try {
+    // Timeout de 15s para detectar si GoTrue cuelga
+    const timeout = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Tiempo de espera agotado. Verifica tu conexión e intenta de nuevo.')), 15000)
+    );
+
+    console.log('[Auth] Iniciando signInWithPassword…');
+    const { data, error } = await Promise.race([
+      supa.auth.signInWithPassword({ email, password: pass }),
+      timeout
+    ]);
+    console.log('[Auth] signInWithPassword completó', { error: error?.message });
+
+    resetBtn();
+    if (error) { showAuthErr(error.message); return; }
+
+    console.log('[Auth] Login OK, cargando perfil…');
+    CURRENT_USER = data.user;
+
+    try {
+      await Promise.race([
+        loadProfile(),
+        new Promise((_, r) => setTimeout(() => r(new Error('loadProfile timeout')), 5000))
+      ]);
+    } catch (pe) {
+      console.warn('[Auth] loadProfile tardó demasiado, continuando sin perfil:', pe.message);
+    }
+    console.log('[Auth] Perfil cargado, abriendo app…');
+
+    hideAuthModal();
+    if (B) { document.getElementById('splash').style.display = 'none'; document.getElementById('app').classList.add('on'); boot(); }
+
+    // Sync en background — no bloquea la apertura de la app
+    syncAllInvToSupabase().catch(e => console.warn('[Auth] syncAllInvToSupabase error:', e));
+
+  } catch (e) {
+    resetBtn();
+    console.error('[Auth] Error en login:', e);
+    showAuthErr(e.message || 'Error inesperado al iniciar sesión.');
+  }
 }
 
 async function authSignup() {
@@ -785,8 +820,8 @@ async function authSignup() {
   if (error) { showAuthErr(error.message); return; }
   CURRENT_USER = data.user;
   USER_PROFILE = { plan: 'free', invoices_this_month: 0, quotes_this_month: 0 };
-  await syncAllInvToSupabase();
   hideAuthModal();
+  syncAllInvToSupabase().catch(e => console.warn('[Signup] syncAllInvToSupabase error:', e));
   // Mostrar onboarding si es usuario nuevo
   if (!B) { /* splash ya visible */ } else { document.getElementById('splash').style.display = 'none'; document.getElementById('app').classList.add('on'); boot(); }
 }
