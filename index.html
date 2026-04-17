@@ -382,6 +382,7 @@ table.pt tr:last-child td{border-bottom:none}
       </div>
     <div style="display:flex;align-items:center;gap:.6rem">
       <button class="btn bo bsm" onclick="showReminders()" id="remBtn" style="position:relative;padding:.45rem .6rem;display:flex;align-items:center;gap:.3rem"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg><span id="remCount" style="display:none;background:var(--red);color:#fff;border-radius:10px;padding:.05rem .35rem;font-size:.65rem"></span></button>
+      <button id="btn-anon-login" class="btn bg bsm" onclick="showAuthModal()" style="display:none;font-size:.72rem;padding:.35rem .7rem">Crear cuenta</button>
       <span class="pill">Beta</span>
     </div>
   </header>
@@ -763,6 +764,7 @@ async function authLogin() {
   if (error) { showAuthErr(error.message === 'Invalid login credentials' ? 'Correo o contraseña incorrectos' : error.message); return; }
   CURRENT_USER = data.user;
   await loadProfile();
+  await syncAllInvToSupabase();
   hideAuthModal();
   if (B) { document.getElementById('splash').style.display = 'none'; document.getElementById('app').classList.add('on'); boot(); }
 }
@@ -779,6 +781,7 @@ async function authSignup() {
   if (error) { showAuthErr(error.message); return; }
   CURRENT_USER = data.user;
   USER_PROFILE = { plan: 'free', invoices_this_month: 0, quotes_this_month: 0 };
+  await syncAllInvToSupabase();
   hideAuthModal();
   // Mostrar onboarding si es usuario nuevo
   if (!B) { /* splash ya visible */ } else { document.getElementById('splash').style.display = 'none'; document.getElementById('app').classList.add('on'); boot(); }
@@ -799,7 +802,7 @@ async function loadProfile() {
 // ── PLAN BAR ──
 function updatePlanBar() {
   const bar = document.getElementById('planBar');
-  if (!bar || !CURRENT_USER) return;
+  if (!bar || !CURRENT_USER || CURRENT_USER.is_anonymous) return;
   bar.style.display = 'flex';
   const isPro = USER_PROFILE.plan === 'pro';
   bar.className = 'plan-bar' + (isPro ? ' pro-bar' : '');
@@ -830,8 +833,8 @@ function updatePlanBar() {
 
 // ── LIMIT CHECK ──
 async function checkLimit(docType) {
-  if (!supa || !CURRENT_USER) {
-    // Fallback localStorage si no hay auth
+  if (!supa || !CURRENT_USER || CURRENT_USER.is_anonymous) {
+    // Fallback localStorage para usuarios anónimos o sin auth
     const key = docType === 'invoice' ? 'fpr4_inv_c' : 'fpr4_quo_c';
     const periodKey = 'fpr4_period';
     const d = new Date();
@@ -868,7 +871,7 @@ function showUpgradeModal(docType) {
 
 // ── STRIPE CHECKOUT ──
 async function startCheckout() {
-  if (!CURRENT_USER) { toast('Inicia sesión primero'); return; }
+  if (!CURRENT_USER || CURRENT_USER.is_anonymous) { showAuthModal(); return; }
   const btn = document.querySelector('#upgradeModal .btn.bg');
   const orig = btn.textContent;
   btn.textContent = 'Redirigiendo…'; btn.classList.add('auth-loading');
@@ -1104,12 +1107,12 @@ function finish() {
   B = { biz, owner: own, phone: document.getElementById('ob-phone').value.trim(), town: document.getElementById('ob-town').value.trim() };
   localStorage.setItem('fpr4_biz', JSON.stringify(B));
   document.getElementById('splash').classList.add('out');
-  setTimeout(() => { document.getElementById('splash').style.display='none'; document.getElementById('app').classList.add('on'); boot(); updatePlanBar(); }, 380);
+  setTimeout(() => { document.getElementById('splash').style.display='none'; document.getElementById('app').classList.add('on'); boot(); updatePlanBar(); updateTopbarAuth(); }, 380);
 }
 
 function boot() {
   setGreet(); fillSettings(); syncBizSig(); updateDash(); renderClients(); syncLogo();
-  resetForm(); addLi();
+  resetForm(); addLi(); updateTopbarAuth();
   setTimeout(() => { initCanvas('bizSigCanvas'); initCanvas('setSigCanvas'); }, 200);
   checkReminders();
 }
@@ -1406,8 +1409,22 @@ function toggleStatus(id) {
 }
 function save(){localStorage.setItem('fpr4_inv',JSON.stringify(INV));}
 
+// Re-sincroniza todas las facturas del localStorage a la cuenta activa (post-login)
+async function syncAllInvToSupabase() {
+  if (!supa || !CURRENT_USER || CURRENT_USER.is_anonymous) return;
+  for (const inv of INV) await syncInvToSupabase(inv);
+}
+
+// Muestra/oculta el botón "Entrar" en el topbar según el tipo de sesión
+function updateTopbarAuth() {
+  const btn = document.getElementById('btn-anon-login');
+  if (!btn) return;
+  const isAnon = !CURRENT_USER || CURRENT_USER.is_anonymous;
+  btn.style.display = isAnon ? 'inline-flex' : 'none';
+}
+
 async function syncInvToSupabase(inv) {
-  if (!supa || !CURRENT_USER) return;
+  if (!supa) return; // RLS deshabilitado — anon key puede leer/escribir
   // Exclude logo from data to avoid large payload; fetch it separately on public page if needed
   const logoThumb = LOGO ? LOGO.substring(0, 8) === 'data:ima' ? LOGO : null : null;
   const payload = {
@@ -1695,22 +1712,29 @@ window.onload = async () => {
   supa.auth.onAuthStateChange(async (event, session) => {
     if (event === 'SIGNED_IN' && session) {
       CURRENT_USER = session.user;
-      await loadProfile();
+      if (!CURRENT_USER.is_anonymous) {
+        await loadProfile();
+      }
       updatePlanBar();
+      updateTopbarAuth();
     } else if (event === 'SIGNED_OUT') {
       CURRENT_USER = null;
       USER_PROFILE = { plan: 'free', invoices_this_month: 0, quotes_this_month: 0 };
+      updateTopbarAuth();
     }
   });
 
   const { data: { session } } = await supa.auth.getSession();
   if (session) {
     CURRENT_USER = session.user;
-    await loadProfile();
+    if (!CURRENT_USER.is_anonymous) await loadProfile();
     if (B) { document.getElementById('splash').style.display='none'; document.getElementById('app').classList.add('on'); boot(); }
     // Si no hay B, el splash de onboarding aparece normalmente
   } else {
-    showAuthModal();
+    // Sin sesión — autenticar anónimamente para que el sync funcione sin cuenta
+    const { data: anonData } = await supa.auth.signInAnonymously();
+    if (anonData?.user) CURRENT_USER = anonData.user;
+    if (B) { document.getElementById('splash').style.display='none'; document.getElementById('app').classList.add('on'); boot(); }
   }
 };
 </script>
