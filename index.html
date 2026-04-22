@@ -1522,7 +1522,7 @@ async function syncInvToSupabase(inv) {
   if (!supa) throw new Error('Supabase no disponible');
   const timeout = new Promise((_, r) => setTimeout(() => r(new Error('sync timeout')), 10000));
   const payload = {
-    slug: String(inv.id),
+    slug: inv.num,
     num: inv.num,
     type: inv.type,
     client: inv.client,
@@ -1752,61 +1752,41 @@ function deleteInv() {
 
 // ── WHATSAPP + PDF ──
 
-function getShareLink(supaId) {
-  return `https://emiti-app.vercel.app/invoice/${supaId}`;
+function getShareLink(inv) {
+  return `https://emiti-app.vercel.app/invoice/${encodeURIComponent(inv.num)}`;
 }
 
-// Garantiza que el documento esté en Supabase y devuelve su supaId.
-// Lanza un Error con mensaje legible si no es posible sincronizar.
-async function ensureSynced(inv) {
-  if (inv.supaId) return inv.supaId;
-  if (!supa || !CURRENT_USER || CURRENT_USER.is_anonymous) {
-    throw new Error('Necesitas una cuenta para compartir documentos. Crea una cuenta gratis.');
-  }
-  toast('Preparando enlace…');
-  await syncInvToSupabase(inv);
-  save(); // persiste supaId en localStorage
-  if (!inv.supaId) throw new Error('No se pudo generar el enlace. Verifica tu conexión e intenta de nuevo.');
-  return inv.supaId;
-}
-
-async function sendEmailWithPDF() {
+function sendEmailWithPDF() {
   if (!CURRENT_INV) return;
   const inv = CURRENT_INV;
-  let supaId;
-  try { supaId = await ensureSynced(inv); } catch(e) { toast('⚠️ ' + e.message); return; }
   const isEst = inv.type === 'estimate';
   const label = isEst ? 'cotización' : 'factura';
   const labelCap = label.charAt(0).toUpperCase() + label.slice(1);
   const subj = `${labelCap} ${inv.num} — ${B.biz}`;
-  const link = getShareLink(supaId);
+  const link = getShareLink(inv);
   const body = `Estimado/a ${inv.client},\n\nAquí puede ver su ${label}:\n\n${link}\n\nGracias,\n${B.owner}\n${B.biz}${B.phone ? '\n' + B.phone : ''}`;
   window.open(`mailto:${inv.email||''}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`, '_blank');
   toast('Email abierto ✓');
 }
 
-async function sendSMSWithPDF() {
+function sendSMSWithPDF() {
   if (!CURRENT_INV) return;
   const inv = CURRENT_INV;
-  let supaId;
-  try { supaId = await ensureSynced(inv); } catch(e) { toast('⚠️ ' + e.message); return; }
   const isEst = inv.type === 'estimate';
   const label = isEst ? 'cotización' : 'factura';
-  const link = getShareLink(supaId);
+  const link = getShareLink(inv);
   const msg = `${B.biz}: Aquí puede ver su ${label}: ${link}`;
   window.open(`sms:${inv.phone||''}?body=${encodeURIComponent(msg)}`, '_blank');
   toast('SMS abierto ✓');
 }
 
-async function sendWhatsAppWithPDF() {
+function sendWhatsAppWithPDF() {
   if (!CURRENT_INV) return;
   const inv = CURRENT_INV;
-  let supaId;
-  try { supaId = await ensureSynced(inv); } catch(e) { toast('⚠️ ' + e.message); return; }
   const ph = inv.phone ? '1' + inv.phone.replace(/\D/g, '') : '';
   const isEst = inv.type === 'estimate';
   const label = isEst ? 'cotización' : 'factura';
-  const link = getShareLink(supaId);
+  const link = getShareLink(inv);
   const msg = `Hola ${inv.client}, aquí puede ver su *${label}* de *${B.biz}*:\n\n${link}`;
   window.open(`https://wa.me/${ph}?text=${encodeURIComponent(msg)}`, '_blank');
   toast('WhatsApp abierto ✓');

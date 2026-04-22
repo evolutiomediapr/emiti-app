@@ -294,37 +294,33 @@ async function startStripeCheckout() {
 
 async function init() {
   const parts = window.location.pathname.split('/');
-  const invoiceId = parts[parts.length - 1];
+  const slug = decodeURIComponent(parts[parts.length - 1]);
 
-  console.log('[invoice] pathname:', window.location.pathname, '| id extraído:', invoiceId);
+  console.log('[invoice] slug:', slug);
 
-  if (!invoiceId) { console.error('[invoice] id vacío'); showError(); return; }
+  if (!slug) { showError(); return; }
 
-  CURRENT_INVOICE_ID = invoiceId;
+  CURRENT_INVOICE_ID = slug;
 
   const supa = supabase.createClient(SUPA_URL, SUPA_ANON_KEY);
 
-  // UUID = supaId (query por id); numérico = id local legacy (query por slug)
-  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(invoiceId);
-  console.log('[invoice] isUUID:', isUUID, '| campo de búsqueda:', isUUID ? 'id' : 'slug');
+  // Los enlaces usan el número de documento como slug (ej. COT-0001).
+  // Por compatibilidad, si parece UUID se sigue buscando por id.
+  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug);
+  const { data, error } = await (isUUID
+    ? supa.from('invoices').select('data').eq('id', slug).single()
+    : supa.from('invoices').select('data').eq('slug', slug).single());
 
-  const query = isUUID
-    ? supa.from('invoices').select('data').eq('id', invoiceId).single()
-    : supa.from('invoices').select('data').eq('slug', invoiceId).single();
+  console.log('[invoice] Supabase error:', error?.message || null, '| data:', !!data);
 
-  const { data, error } = await query;
-
-  console.log('[invoice] resultado Supabase — error:', error?.message || null, '| data:', data ? 'recibida' : 'null', '| data.data:', data?.data ? `${String(data.data).slice(0, 80)}…` : 'null');
-
-  if (error || !data || !data.data) { console.error('[invoice] showError — razón:', error?.message || (!data ? 'data null' : 'data.data null')); showError(); return; }
+  if (error || !data || !data.data) { showError(); return; }
 
   let parsed;
-  try { parsed = JSON.parse(data.data); } catch(e) { console.error('[invoice] JSON.parse falló:', e.message); showError(); return; }
+  try { parsed = JSON.parse(data.data); } catch { showError(); return; }
 
   const { inv, biz, logo, payments } = parsed;
-  if (!inv || !biz) { console.error('[invoice] parsed.inv o parsed.biz faltante'); showError(); return; }
+  if (!inv || !biz) { showError(); return; }
 
-  console.log('[invoice] documento cargado — num:', inv.num, '| cliente:', inv.client);
   CURRENT_INVOICE = inv;
   renderDoc(inv, biz, logo || null, payments || null);
 }
