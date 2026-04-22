@@ -146,7 +146,14 @@ textarea{resize:vertical;min-height:66px;line-height:1.5}
 
 /* CHART */
 .chart-wrap{background:#fff;border:1px solid var(--bd);border-radius:var(--r);padding:1.1rem;margin-bottom:.8rem;box-shadow:var(--sh)}
-.chart-title{font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--mu);margin-bottom:1rem}
+.chart-title{font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--mu);margin-bottom:.6rem}
+.chart-filters{display:flex;gap:.3rem;margin-bottom:.75rem;flex-wrap:wrap}
+.cf-btn{font-size:.65rem;font-weight:700;padding:.26rem .6rem;border-radius:20px;border:1.5px solid var(--bd);background:transparent;color:var(--mu);cursor:pointer;font-family:inherit;transition:all .15s;white-space:nowrap;line-height:1.4}
+.cf-btn.active{background:var(--gl);color:var(--green);border-color:rgba(26,122,74,.25)}
+.cf-custom{display:none;align-items:center;gap:.4rem;flex-wrap:wrap;margin-bottom:.75rem;padding:.6rem;background:var(--bg);border-radius:var(--rs)}
+.cf-custom label{font-size:.65rem;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+.cf-custom input[type=date]{font-size:.75rem;padding:.28rem .45rem;border:1.5px solid var(--bd);border-radius:var(--rs);font-family:inherit;color:var(--ink);background:#fff;min-width:0;flex:1}
+.cf-apply{font-size:.72rem;font-weight:700;padding:.28rem .65rem;border-radius:var(--rs);border:none;background:var(--green);color:#fff;cursor:pointer;font-family:inherit;white-space:nowrap}
 .bar-chart{display:flex;align-items:flex-end;gap:.4rem;height:100px;padding-bottom:1.5rem;position:relative}
 .bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:.3rem;height:100%;justify-content:flex-end}
 .bar-group{display:flex;gap:2px;align-items:flex-end;width:100%}
@@ -403,7 +410,20 @@ table.pt tr:last-child td{border-bottom:none}
 
     <!-- MONTHLY CHART -->
     <div class="chart-wrap">
-      <div class="chart-title"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:5px"><rect x="3" y="12" width="4" height="9" rx="1"/><rect x="10" y="7" width="4" height="14" rx="1"/><rect x="17" y="3" width="4" height="18" rx="1"/></svg>Ingresos — últimos 6 meses</div>
+      <div class="chart-title"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:5px"><rect x="3" y="12" width="4" height="9" rx="1"/><rect x="10" y="7" width="4" height="14" rx="1"/><rect x="17" y="3" width="4" height="18" rx="1"/></svg><span id="chartTitle">Ingresos — este mes</span></div>
+      <div class="chart-filters">
+        <button class="cf-btn active" onclick="setChartFilter('month',this)">Este mes</button>
+        <button class="cf-btn" onclick="setChartFilter('week',this)">Esta semana</button>
+        <button class="cf-btn" onclick="setChartFilter('year',this)">Este año</button>
+        <button class="cf-btn" onclick="setChartFilter('custom',this)">Personalizado</button>
+      </div>
+      <div class="cf-custom" id="chartCustomRange">
+        <label>Desde</label>
+        <input type="date" id="cf-from">
+        <label>Hasta</label>
+        <input type="date" id="cf-to">
+        <button class="cf-apply" onclick="applyCustomFilter()">Aplicar</button>
+      </div>
       <div class="bar-chart" id="barChart"></div>
       <div class="chart-legend">
         <div class="leg-item"><div class="leg-dot" style="background:var(--gl);border:1.5px solid rgba(26,122,74,.2)"></div>Facturado</div>
@@ -723,6 +743,9 @@ let PAYMENTS = JSON.parse(localStorage.getItem('fpr4_pay') || '{}');
 let LN = 0;
 let DOC_TYPE = 'invoice';
 let CURRENT_INV = null;
+let chartFilter = 'month';
+let chartCustomFrom = '';
+let chartCustomTo = '';
 let sigCanvases = {};
 let isDrawing = {};
 let sigType = 'draw';
@@ -1577,6 +1600,23 @@ function updateDash() {
   document.getElementById('homeList').innerHTML=recent.length?recent.map(icard).join(''):`<div class="empty"><div class="ei"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#C8D5CC" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg></div><p>Aún no hay documentos.<br>Toca <strong>+</strong> para crear el primero.</p></div>`;
 }
 
+// ── CHART FILTERS ──
+function setChartFilter(filter, btn) {
+  chartFilter = filter;
+  document.querySelectorAll('.cf-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('chartCustomRange').style.display = filter === 'custom' ? 'flex' : 'none';
+  if (filter !== 'custom') renderChart();
+}
+
+function applyCustomFilter() {
+  chartCustomFrom = document.getElementById('cf-from').value;
+  chartCustomTo   = document.getElementById('cf-to').value;
+  if (!chartCustomFrom || !chartCustomTo) { toast('Selecciona ambas fechas'); return; }
+  if (chartCustomFrom > chartCustomTo)    { toast('La fecha inicial debe ser anterior a la final'); return; }
+  renderChart();
+}
+
 // ── CHART ──
 function getMonthData() {
   const months=[]; const now=new Date();
@@ -1591,12 +1631,86 @@ function getMonthData() {
   return months;
 }
 
+function getFilteredData() {
+  const now = new Date();
+
+  if (chartFilter === 'week') {
+    // L-D de la semana actual
+    const wd = now.getDay();
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - (wd === 0 ? 6 : wd - 1));
+    monday.setHours(0, 0, 0, 0);
+    return ['L','M','X','J','V','S','D'].map((lbl, i) => {
+      const day = new Date(monday);
+      day.setDate(monday.getDate() + i);
+      const key = day.toISOString().slice(0, 10);
+      const invs = INV.filter(inv => inv.type === 'invoice' && inv.date === key);
+      return { label: lbl, invoiced: invs.reduce((a,v)=>a+v.total,0), collected: invs.filter(v=>v.status==='paid').reduce((a,v)=>a+v.total,0) };
+    });
+  }
+
+  if (chartFilter === 'year') {
+    // 12 meses del año actual
+    return Array.from({length:12}, (_,m) => {
+      const d = new Date(now.getFullYear(), m, 1);
+      const invs = INV.filter(inv => {
+        if (inv.type !== 'invoice') return false;
+        const id = new Date(inv.date+'T12:00:00');
+        return id.getMonth()===m && id.getFullYear()===now.getFullYear();
+      });
+      return { label: d.toLocaleDateString('es-PR',{month:'short'}), invoiced: invs.reduce((a,v)=>a+v.total,0), collected: invs.filter(v=>v.status==='paid').reduce((a,v)=>a+v.total,0) };
+    });
+  }
+
+  if (chartFilter === 'custom' && chartCustomFrom && chartCustomTo) {
+    const from = new Date(chartCustomFrom+'T00:00:00');
+    const to   = new Date(chartCustomTo+'T23:59:59');
+    const groups = [];
+    let cur = new Date(from.getFullYear(), from.getMonth(), 1);
+    while (cur <= to) {
+      const m = cur.getMonth(), y = cur.getFullYear();
+      const invs = INV.filter(inv => {
+        if (inv.type !== 'invoice') return false;
+        const d = new Date(inv.date+'T12:00:00');
+        return d.getMonth()===m && d.getFullYear()===y && d>=from && d<=to;
+      });
+      groups.push({ label: cur.toLocaleDateString('es-PR',{month:'short', year:'2-digit'}), invoiced: invs.reduce((a,v)=>a+v.total,0), collected: invs.filter(v=>v.status==='paid').reduce((a,v)=>a+v.total,0) });
+      cur.setMonth(cur.getMonth()+1);
+    }
+    return groups;
+  }
+
+  // 'month' — semanas del mes actual (S1…S4/S5)
+  const y = now.getFullYear(), m = now.getMonth();
+  const firstDay = new Date(y, m, 1);
+  const lastDay  = new Date(y, m+1, 0, 23, 59, 59);
+  const weeks = [];
+  let ws = new Date(firstDay); let wn = 1;
+  while (ws <= lastDay) {
+    const we = new Date(ws); we.setDate(ws.getDate()+6);
+    if (we > lastDay) we.setTime(lastDay.getTime());
+    const invs = INV.filter(inv => {
+      if (inv.type !== 'invoice') return false;
+      const d = new Date(inv.date+'T12:00:00');
+      return d>=ws && d<=we;
+    });
+    weeks.push({ label:`S${wn}`, invoiced: invs.reduce((a,v)=>a+v.total,0), collected: invs.filter(v=>v.status==='paid').reduce((a,v)=>a+v.total,0) });
+    ws.setDate(ws.getDate()+7); wn++;
+  }
+  return weeks;
+}
+
+const CHART_TITLES = { month:'Ingresos — este mes', week:'Ingresos — esta semana', year:'Ingresos — este año', custom:'Ingresos — personalizado' };
+
 function renderChart() {
-  const data=getMonthData();
+  const data = getFilteredData();
+  const titleEl = document.getElementById('chartTitle');
+  if (titleEl) titleEl.textContent = CHART_TITLES[chartFilter] || 'Ingresos';
+
   const max=Math.max(...data.map(d=>d.invoiced),1);
   const chart=document.getElementById('barChart'); if(!chart) return;
   chart.innerHTML='';
-  data.forEach((d,i)=>{
+  data.forEach(d=>{
     const col=document.createElement('div'); col.className='bar-col'; col.style.position='relative';
     const invH=Math.max((d.invoiced/max)*80,d.invoiced>0?4:0);
     const colH=Math.max((d.collected/max)*80,d.collected>0?4:0);
@@ -1609,7 +1723,6 @@ function renderChart() {
     `;
     chart.appendChild(col);
   });
-  // Summary
   const totalInv=data.reduce((a,d)=>a+d.invoiced,0);
   const totalCol=data.reduce((a,d)=>a+d.collected,0);
   const rate=totalInv>0?Math.round((totalCol/totalInv)*100):0;
