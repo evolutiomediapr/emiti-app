@@ -1821,33 +1821,63 @@ window.onload = async () => {
     return;
   }
 
-  // Escuchar cambios de sesión (refresh de token, etc.)
+  let appBooted = false;
+  function bootOnce() {
+    if (appBooted) return;
+    appBooted = true;
+    if (B) {
+      document.getElementById('splash').style.display = 'none';
+      document.getElementById('app').classList.add('on');
+      boot();
+    }
+  }
+
+  // Escuchar cambios de sesión (refresh de token, navegación de vuelta, bfcache, etc.)
   supa.auth.onAuthStateChange(async (event, session) => {
-    if (event === 'SIGNED_IN' && session) {
+    if (session && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED')) {
       CURRENT_USER = session.user;
-      if (!CURRENT_USER.is_anonymous) {
-        await loadProfile();
-      }
-      updatePlanBar();
+      // Ocultar modal y mostrar app ANTES de cualquier llamada de red
+      hideAuthModal();
       updateTopbarAuth();
+      bootOnce();
+      // loadProfile en background — no bloquea la carga de la app
+      if (!CURRENT_USER.is_anonymous) {
+        loadProfile().catch(e => console.warn('[onAuthStateChange] loadProfile:', e.message));
+      }
     } else if (event === 'SIGNED_OUT') {
       CURRENT_USER = null;
       USER_PROFILE = { plan: 'free', invoices_this_month: 0, quotes_this_month: 0 };
       updateTopbarAuth();
+      updatePlanBar();
     }
   });
 
-  const { data: { session } } = await supa.auth.getSession();
-  if (session) {
-    CURRENT_USER = session.user;
-    if (!CURRENT_USER.is_anonymous) await loadProfile();
-    if (B) { document.getElementById('splash').style.display='none'; document.getElementById('app').classList.add('on'); boot(); }
-    // Si no hay B, el splash de onboarding aparece normalmente
-  } else {
-    // Sin sesión — autenticar anónimamente para que el sync funcione sin cuenta
-    const { data: anonData } = await supa.auth.signInAnonymously();
-    if (anonData?.user) CURRENT_USER = anonData.user;
-    if (B) { document.getElementById('splash').style.display='none'; document.getElementById('app').classList.add('on'); boot(); }
+  // getSession() como respaldo — cubre casos donde INITIAL_SESSION no se dispara
+  try {
+    const { data: { session } } = await supa.auth.getSession();
+    if (session) {
+      CURRENT_USER = session.user;
+      hideAuthModal();
+      bootOnce();
+      if (!CURRENT_USER.is_anonymous) {
+        loadProfile().catch(e => console.warn('[getSession] loadProfile:', e.message));
+      }
+    } else {
+      // Solo crear sesión anónima si no hay token guardado — evita sobrescribir sesión real expirada
+      const storedToken = localStorage.getItem('sb-gtxxokmrkesyljqodtrr-auth-token');
+      if (!storedToken) {
+        const { data: anonData } = await supa.auth.signInAnonymously();
+        if (anonData?.user) CURRENT_USER = anonData.user;
+        hideAuthModal();
+        bootOnce();
+      }
+      // Si hay token guardado pero expiró, el onAuthStateChange se encarga del refresh
+      // El modal de login queda visible solo si el token expiró irrecuperablemente
+    }
+  } catch (e) {
+    console.warn('[window.onload] getSession error:', e.message);
+    // Si getSession() lanza (ej. timeout de red), INITIAL_SESSION ya pudo haber iniciado la app
+    // Si no, el usuario verá el modal de login para re-autenticarse
   }
 };
 </script>
