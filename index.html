@@ -1505,7 +1505,9 @@ function save(){localStorage.setItem('fpr4_inv',JSON.stringify(INV));}
 // Re-sincroniza todas las facturas del localStorage a la cuenta activa (post-login)
 async function syncAllInvToSupabase() {
   if (!supa || !CURRENT_USER || CURRENT_USER.is_anonymous) return;
-  for (const inv of INV) await syncInvToSupabase(inv);
+  for (const inv of INV) {
+    await syncInvToSupabase(inv).catch(e => console.warn('[syncAll]', e.message));
+  }
 }
 
 // Muestra/oculta el botón "Entrar" en el topbar según el tipo de sesión
@@ -1517,8 +1519,7 @@ function updateTopbarAuth() {
 }
 
 async function syncInvToSupabase(inv) {
-  if (!supa) { console.warn('[sync] supa no disponible'); return; }
-  console.log('[sync] iniciando para inv.id:', inv.id, 'supaId existente:', inv.supaId);
+  if (!supa) throw new Error('Supabase no disponible');
   const timeout = new Promise((_, r) => setTimeout(() => r(new Error('sync timeout')), 10000));
   const payload = {
     slug: String(inv.id),
@@ -1529,39 +1530,20 @@ async function syncInvToSupabase(inv) {
     client_email: inv.email || null,
     data: JSON.stringify({ inv, biz: B, logo: LOGO, payments: PAYMENTS })
   };
-  try {
-    if (inv.supaId) {
-      console.log('[sync] actualizando row existente:', inv.supaId);
-      const { error } = await Promise.race([
-        supa.from('invoices').update(payload).eq('id', inv.supaId),
-        timeout
-      ]);
-      if (error) {
-        console.error('[sync] update error:', error.message, error);
-        alert('⚠️ DEBUG sync update error:\n' + error.message);
-      } else {
-        console.log('[sync] update OK');
-      }
-    } else {
-      console.log('[sync] insertando nueva row…');
-      const { data, error } = await Promise.race([
-        supa.from('invoices').insert(payload).select('id').single(),
-        timeout
-      ]);
-      if (error) {
-        console.error('[sync] insert error:', error.message, error);
-        alert('⚠️ DEBUG sync insert error:\n' + error.message + '\n\nsupa URL: ' + SUPA_URL + '\nuser: ' + (CURRENT_USER?.id || 'null') + '\nanon: ' + CURRENT_USER?.is_anonymous);
-      } else if (data) {
-        inv.supaId = data.id;
-        console.log('[sync] insert OK → supaId:', inv.supaId);
-        alert('✅ DEBUG sync OK\nsupaId: ' + inv.supaId + '\nEnlace: /invoice/' + inv.supaId);
-      } else {
-        alert('⚠️ DEBUG sync: sin error pero data es null');
-      }
-    }
-  } catch (e) {
-    console.warn('[sync] excepción:', e.message);
-    alert('⚠️ DEBUG sync excepción:\n' + e.message);
+  if (inv.supaId) {
+    const { error } = await Promise.race([
+      supa.from('invoices').update(payload).eq('id', inv.supaId),
+      timeout
+    ]);
+    if (error) throw new Error(error.message);
+  } else {
+    const { data, error } = await Promise.race([
+      supa.from('invoices').insert(payload).select('id').single(),
+      timeout
+    ]);
+    if (error) throw new Error(error.message);
+    if (!data) throw new Error('Supabase no devolvió el ID del documento');
+    inv.supaId = data.id;
   }
 }
 
@@ -1767,42 +1749,61 @@ function deleteInv() {
 
 // ── WHATSAPP + PDF ──
 
-function getShareLink(inv) {
-  const id = inv.supaId || inv.id;
-  return `https://emiti-app.vercel.app/invoice/${id}`;
+function getShareLink(supaId) {
+  return `https://emiti-app.vercel.app/invoice/${supaId}`;
 }
 
-function sendEmailWithPDF() {
+// Garantiza que el documento esté en Supabase y devuelve su supaId.
+// Lanza un Error con mensaje legible si no es posible sincronizar.
+async function ensureSynced(inv) {
+  if (inv.supaId) return inv.supaId;
+  if (!supa || !CURRENT_USER || CURRENT_USER.is_anonymous) {
+    throw new Error('Necesitas una cuenta para compartir documentos. Crea una cuenta gratis.');
+  }
+  toast('Preparando enlace…');
+  await syncInvToSupabase(inv);
+  save(); // persiste supaId en localStorage
+  if (!inv.supaId) throw new Error('No se pudo generar el enlace. Verifica tu conexión e intenta de nuevo.');
+  return inv.supaId;
+}
+
+async function sendEmailWithPDF() {
   if (!CURRENT_INV) return;
   const inv = CURRENT_INV;
+  let supaId;
+  try { supaId = await ensureSynced(inv); } catch(e) { toast('⚠️ ' + e.message); return; }
   const isEst = inv.type === 'estimate';
   const label = isEst ? 'cotización' : 'factura';
   const labelCap = label.charAt(0).toUpperCase() + label.slice(1);
   const subj = `${labelCap} ${inv.num} — ${B.biz}`;
-  const link = getShareLink(inv);
+  const link = getShareLink(supaId);
   const body = `Estimado/a ${inv.client},\n\nAquí puede ver su ${label}:\n\n${link}\n\nGracias,\n${B.owner}\n${B.biz}${B.phone ? '\n' + B.phone : ''}`;
   window.open(`mailto:${inv.email||''}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`, '_blank');
   toast('Email abierto ✓');
 }
 
-function sendSMSWithPDF() {
+async function sendSMSWithPDF() {
   if (!CURRENT_INV) return;
   const inv = CURRENT_INV;
+  let supaId;
+  try { supaId = await ensureSynced(inv); } catch(e) { toast('⚠️ ' + e.message); return; }
   const isEst = inv.type === 'estimate';
   const label = isEst ? 'cotización' : 'factura';
-  const link = getShareLink(inv);
+  const link = getShareLink(supaId);
   const msg = `${B.biz}: Aquí puede ver su ${label}: ${link}`;
   window.open(`sms:${inv.phone||''}?body=${encodeURIComponent(msg)}`, '_blank');
   toast('SMS abierto ✓');
 }
 
-function sendWhatsAppWithPDF() {
+async function sendWhatsAppWithPDF() {
   if (!CURRENT_INV) return;
   const inv = CURRENT_INV;
+  let supaId;
+  try { supaId = await ensureSynced(inv); } catch(e) { toast('⚠️ ' + e.message); return; }
   const ph = inv.phone ? '1' + inv.phone.replace(/\D/g, '') : '';
   const isEst = inv.type === 'estimate';
   const label = isEst ? 'cotización' : 'factura';
-  const link = getShareLink(inv);
+  const link = getShareLink(supaId);
   const msg = `Hola ${inv.client}, aquí puede ver su *${label}* de *${B.biz}*:\n\n${link}`;
   window.open(`https://wa.me/${ph}?text=${encodeURIComponent(msg)}`, '_blank');
   toast('WhatsApp abierto ✓');
