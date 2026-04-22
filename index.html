@@ -1530,20 +1530,23 @@ async function syncInvToSupabase(inv) {
     client_email: inv.email || null,
     data: JSON.stringify({ inv, biz: B, logo: LOGO, payments: PAYMENTS })
   };
+  console.log('[sync] iniciando — inv.id:', inv.id, '| supaId previo:', inv.supaId || 'ninguno', '| user:', CURRENT_USER?.id, '| anon:', CURRENT_USER?.is_anonymous);
   if (inv.supaId) {
     const { error } = await Promise.race([
       supa.from('invoices').update(payload).eq('id', inv.supaId),
       timeout
     ]);
-    if (error) throw new Error(error.message);
+    if (error) { console.error('[sync] update error:', error.message, error); throw new Error(error.message); }
+    console.log('[sync] update OK — supaId:', inv.supaId, '| enlace:', `https://emiti-app.vercel.app/invoice/${inv.supaId}`);
   } else {
     const { data, error } = await Promise.race([
       supa.from('invoices').insert(payload).select('id').single(),
       timeout
     ]);
-    if (error) throw new Error(error.message);
+    if (error) { console.error('[sync] insert error:', error.message, error); throw new Error(error.message); }
     if (!data) throw new Error('Supabase no devolvió el ID del documento');
     inv.supaId = data.id;
+    console.log('[sync] insert OK — supaId asignado:', inv.supaId, '| enlace:', `https://emiti-app.vercel.app/invoice/${inv.supaId}`);
   }
 }
 
@@ -1837,14 +1840,17 @@ window.onload = async () => {
   supa.auth.onAuthStateChange(async (event, session) => {
     if (session && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED')) {
       CURRENT_USER = session.user;
-      // Ocultar modal y mostrar app ANTES de cualquier llamada de red
+      if (CURRENT_USER.is_anonymous) {
+        // Sesión anónima — solo registrar el usuario para sync, NO abrir la app ni ocultar el login
+        console.log('[auth] sesión anónima detectada — mantener modal de login visible');
+        updateTopbarAuth();
+        return;
+      }
+      // Usuario autenticado real — ocultar login y abrir app
       hideAuthModal();
       updateTopbarAuth();
       bootOnce();
-      // loadProfile en background — no bloquea la carga de la app
-      if (!CURRENT_USER.is_anonymous) {
-        loadProfile().catch(e => console.warn('[onAuthStateChange] loadProfile:', e.message));
-      }
+      loadProfile().catch(e => console.warn('[onAuthStateChange] loadProfile:', e.message));
     } else if (event === 'SIGNED_OUT') {
       CURRENT_USER = null;
       USER_PROFILE = { plan: 'free', invoices_this_month: 0, quotes_this_month: 0 };
@@ -1858,27 +1864,27 @@ window.onload = async () => {
     const { data: { session } } = await supa.auth.getSession();
     if (session) {
       CURRENT_USER = session.user;
-      hideAuthModal();
-      bootOnce();
       if (!CURRENT_USER.is_anonymous) {
+        // Solo abrir la app si el usuario se autenticó explícitamente
+        hideAuthModal();
+        bootOnce();
         loadProfile().catch(e => console.warn('[getSession] loadProfile:', e.message));
+      } else {
+        console.log('[auth] getSession devolvió sesión anónima — modal de login permanece visible');
+        updateTopbarAuth();
       }
     } else {
-      // Solo crear sesión anónima si no hay token guardado — evita sobrescribir sesión real expirada
+      // Sin sesión — crear sesión anónima en background para que el sync funcione
+      // pero NO abrir la app ni ocultar el login
       const storedToken = localStorage.getItem('sb-gtxxokmrkesyljqodtrr-auth-token');
       if (!storedToken) {
         const { data: anonData } = await supa.auth.signInAnonymously();
         if (anonData?.user) CURRENT_USER = anonData.user;
-        hideAuthModal();
-        bootOnce();
+        console.log('[auth] sesión anónima creada en background — usuario debe hacer login para acceder');
       }
-      // Si hay token guardado pero expiró, el onAuthStateChange se encarga del refresh
-      // El modal de login queda visible solo si el token expiró irrecuperablemente
     }
   } catch (e) {
     console.warn('[window.onload] getSession error:', e.message);
-    // Si getSession() lanza (ej. timeout de red), INITIAL_SESSION ya pudo haber iniciado la app
-    // Si no, el usuario verá el modal de login para re-autenticarse
   }
 };
 </script>

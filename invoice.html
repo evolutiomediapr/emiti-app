@@ -296,14 +296,17 @@ async function init() {
   const parts = window.location.pathname.split('/');
   const invoiceId = parts[parts.length - 1];
 
-  if (!invoiceId) { showError(); return; }
+  console.log('[invoice] pathname:', window.location.pathname, '| id extraído:', invoiceId);
+
+  if (!invoiceId) { console.error('[invoice] id vacío'); showError(); return; }
 
   CURRENT_INVOICE_ID = invoiceId;
 
   const supa = supabase.createClient(SUPA_URL, SUPA_ANON_KEY);
 
-  // UUID format = supaId (36 chars with dashes); numeric = legacy local id → query by slug
+  // UUID = supaId (query por id); numérico = id local legacy (query por slug)
   const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(invoiceId);
+  console.log('[invoice] isUUID:', isUUID, '| campo de búsqueda:', isUUID ? 'id' : 'slug');
 
   const query = isUUID
     ? supa.from('invoices').select('data').eq('id', invoiceId).single()
@@ -311,14 +314,17 @@ async function init() {
 
   const { data, error } = await query;
 
-  if (error || !data || !data.data) { showError(); return; }
+  console.log('[invoice] resultado Supabase — error:', error?.message || null, '| data:', data ? 'recibida' : 'null', '| data.data:', data?.data ? `${String(data.data).slice(0, 80)}…` : 'null');
+
+  if (error || !data || !data.data) { console.error('[invoice] showError — razón:', error?.message || (!data ? 'data null' : 'data.data null')); showError(); return; }
 
   let parsed;
-  try { parsed = JSON.parse(data.data); } catch { showError(); return; }
+  try { parsed = JSON.parse(data.data); } catch(e) { console.error('[invoice] JSON.parse falló:', e.message); showError(); return; }
 
   const { inv, biz, logo, payments } = parsed;
-  if (!inv || !biz) { showError(); return; }
+  if (!inv || !biz) { console.error('[invoice] parsed.inv o parsed.biz faltante'); showError(); return; }
 
+  console.log('[invoice] documento cargado — num:', inv.num, '| cliente:', inv.client);
   CURRENT_INVOICE = inv;
   renderDoc(inv, biz, logo || null, payments || null);
 }
