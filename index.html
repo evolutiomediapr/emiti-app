@@ -314,6 +314,13 @@ table.pt tr:last-child td{border-bottom:none}
   .ppay-section{padding:.35rem!important;margin-bottom:.4rem!important}
 }
 
+/* ── CATÁLOGO DE SERVICIOS ── */
+.svc-row{display:flex;align-items:center;justify-content:space-between;padding:.55rem .7rem;border:1.5px solid var(--bd);border-radius:var(--rs);margin-bottom:.4rem}
+.svc-row-name{font-weight:700;font-size:.86rem}
+.svc-row-price{font-size:.78rem;color:var(--green);font-weight:700}
+.svc-pick{display:flex;align-items:center;justify-content:space-between;padding:.65rem .8rem;border:1.5px solid var(--bd);border-radius:var(--rs);margin-bottom:.45rem;cursor:pointer;transition:background .12s}
+.svc-pick:active{background:var(--bl)}
+
 /* ── AUTH MODAL ── */
 #authModal{position:fixed;inset:0;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2rem 1.6rem;z-index:2000}
 #authModal.hide{display:none}
@@ -477,7 +484,10 @@ table.pt tr:last-child td{border-bottom:none}
     <div class="block">
       <div class="bh">Servicios y Materiales</div>
       <div id="liItems"></div>
-      <button class="btn bo bsm bw" style="margin-top:.3rem" onclick="addLi()">+ Añadir línea</button>
+      <div style="display:flex;gap:.5rem;margin-top:.3rem">
+        <button class="btn bo bsm bw" style="flex:1" onclick="addLi()">+ Línea</button>
+        <button class="btn bsm" onclick="openSvcPicker()" style="flex:1;background:var(--gl);color:var(--green);border:1.5px solid rgba(26,122,74,.2)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:4px"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>Catálogo</button>
+      </div>
     </div>
 
     <div class="block">
@@ -583,6 +593,15 @@ table.pt tr:last-child td{border-bottom:none}
       <div class="srow"><span class="slbl">Facturas creadas</span><span class="sval" id="sv-cnt">0</span></div>
       <div class="srow"><span class="slbl">Plan</span><span class="sval" style="color:var(--green);font-weight:700">Beta gratuita</span></div>
     </div>
+    <!-- CATÁLOGO DE SERVICIOS -->
+    <div class="block">
+      <div class="bh" style="display:flex;justify-content:space-between;align-items:center">
+        <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:5px"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>Catálogo de Servicios</span>
+        <button class="btn bsm bg" onclick="openSvcEditor(null)" style="font-size:.72rem;padding:.3rem .65rem">+ Nuevo</button>
+      </div>
+      <div id="svcMgrList"><div class="cs" style="font-size:.8rem;color:var(--mu)">Cargando…</div></div>
+    </div>
+
     <div style="text-align:center;padding:1.3rem 0;font-size:.72rem;color:var(--mu)">Emiti v0.1 · emiti.app</div>
   </div>
 
@@ -681,6 +700,36 @@ table.pt tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<!-- SERVICE PICKER MODAL -->
+<div class="modal-overlay" id="svcPickerModal">
+  <div class="modal-box" style="position:relative;max-height:75vh;display:flex;flex-direction:column">
+    <button class="modal-close" onclick="closeSvcPicker()">✕</button>
+    <h3>Catálogo de Servicios</h3>
+    <div class="modal-sub">Toca un servicio para añadirlo</div>
+    <div id="svcPickerList" style="overflow-y:auto;flex:1;margin-top:.8rem"></div>
+    <button class="btn bsm" onclick="openSvcEditor(null)" style="margin-top:.8rem;width:100%;background:var(--gl);color:var(--green);border:1.5px solid rgba(26,122,74,.2)">+ Agregar nuevo servicio</button>
+  </div>
+</div>
+
+<!-- SERVICE EDITOR MODAL -->
+<div class="modal-overlay" id="svcEditorModal">
+  <div class="modal-box" style="position:relative">
+    <button class="modal-close" onclick="closeSvcEditor()">✕</button>
+    <h3 id="svcEditorTitle">Nuevo Servicio</h3>
+    <div class="f"><label>Nombre del servicio</label><input type="text" id="svc-name" placeholder="Ej: Mano de obra por hora"></div>
+    <div class="two">
+      <div class="f"><label>Precio ($)</label><input type="number" id="svc-price" placeholder="0.00" min="0" step="0.01"></div>
+      <div class="f"><label>Unidad (opcional)</label><input type="text" id="svc-unit" placeholder="hr, pie, unidad…" maxlength="20"></div>
+    </div>
+    <input type="hidden" id="svc-editing-id">
+    <div style="display:flex;gap:.5rem;margin-top:.5rem">
+      <button class="btn bo" style="flex:1" onclick="closeSvcEditor()">Cancelar</button>
+      <button class="btn bg" style="flex:1" onclick="saveSvc()">Guardar</button>
+    </div>
+    <button id="svcDeleteBtn" class="btn" onclick="deleteSvc()" style="display:none;width:100%;margin-top:.5rem;background:var(--rl);color:var(--red);border:1.5px solid rgba(192,57,43,.2)">Eliminar servicio</button>
+  </div>
+</div>
+
 <!-- AUTH MODAL -->
 <div id="authModal">
   <div class="auth-logo">
@@ -759,6 +808,7 @@ const FREE_LIMIT = 3;
 let supa = null;
 let CURRENT_USER = null;
 let USER_PROFILE = { plan: 'free', invoices_this_month: 0, quotes_this_month: 0 };
+let SVCS = [];
 
 // fetch con timeout global — evita que requests cuelguen indefinidamente en móvil
 function fetchWithTimeout(timeout) {
@@ -1218,6 +1268,7 @@ function boot() {
   resetForm(); addLi(); updateTopbarAuth();
   setTimeout(() => { initCanvas('bizSigCanvas'); initCanvas('setSigCanvas'); }, 200);
   checkReminders();
+  loadServices();
 }
 
 // ── NAV ──
@@ -1231,7 +1282,7 @@ function go(name) {
   if (name==='facturas') renderAll();
   if (name==='clientes') renderClients();
   if (name==='historial') renderHistorial();
-  if (name==='ajustes') { fillSettings(); syncBizSig(); syncLogo(); }
+  if (name==='ajustes') { fillSettings(); syncBizSig(); syncLogo(); renderSvcMgr(); }
   if (name==='nueva') { resetForm(); addLi(); setTimeout(()=>initCanvas('bizSigCanvas'),150); }
 }
 
@@ -1796,6 +1847,132 @@ function setGreet() {
 
 function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2800);}
 
+// ── SERVICE CATALOG ──
+function _esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+async function loadServices() {
+  if (!supa || !CURRENT_USER || CURRENT_USER.is_anonymous) { SVCS = []; renderSvcMgr(); return; }
+  const { data, error } = await supa.from('services').select('*').eq('user_id', CURRENT_USER.id).order('name');
+  if (!error && data) SVCS = data;
+  renderSvcMgr();
+}
+
+function openSvcPicker() {
+  if (!CURRENT_USER || CURRENT_USER.is_anonymous) { toast('Inicia sesión para usar el catálogo'); return; }
+  renderSvcPicker();
+  document.getElementById('svcPickerModal').style.display = 'flex';
+}
+function closeSvcPicker() {
+  document.getElementById('svcPickerModal').style.display = 'none';
+}
+function renderSvcPicker() {
+  const el = document.getElementById('svcPickerList');
+  if (!SVCS.length) {
+    el.innerHTML = `<div class="cs" style="font-size:.82rem;color:var(--mu)">No tienes servicios guardados aún.<br>Agrégalos desde el botón de abajo.</div>`;
+    return;
+  }
+  el.innerHTML = SVCS.map((s, i) => `
+    <div class="svc-pick" onclick="pickSvc(${i})">
+      <div>
+        <div class="svc-row-name">${_esc(s.name)}</div>
+        ${s.unit ? `<div style="font-size:.72rem;color:var(--mu)">${_esc(s.unit)}</div>` : ''}
+      </div>
+      <div class="svc-row-price">$${parseFloat(s.price).toFixed(2)}</div>
+    </div>
+  `).join('');
+}
+function pickSvc(idx) {
+  const s = SVCS[idx]; if (!s) return;
+  addLi();
+  const id = LN;
+  document.getElementById('ld'+id).value = s.unit ? `${s.name} (${s.unit})` : s.name;
+  document.getElementById('lq'+id).value = 1;
+  document.getElementById('lp'+id).value = parseFloat(s.price).toFixed(2);
+  calcLi(id);
+  closeSvcPicker();
+  toast(s.name + ' añadido ✓');
+}
+
+function openSvcEditor(id) {
+  document.getElementById('svc-name').value = '';
+  document.getElementById('svc-price').value = '';
+  document.getElementById('svc-unit').value = '';
+  document.getElementById('svc-editing-id').value = '';
+  document.getElementById('svcDeleteBtn').style.display = 'none';
+  document.getElementById('svcEditorTitle').textContent = 'Nuevo Servicio';
+  if (id !== null) {
+    const s = SVCS.find(x => x.id === id);
+    if (s) {
+      document.getElementById('svc-name').value = s.name;
+      document.getElementById('svc-price').value = s.price;
+      document.getElementById('svc-unit').value = s.unit || '';
+      document.getElementById('svc-editing-id').value = s.id;
+      document.getElementById('svcDeleteBtn').style.display = 'block';
+      document.getElementById('svcEditorTitle').textContent = 'Editar Servicio';
+    }
+  }
+  closeSvcPicker();
+  document.getElementById('svcEditorModal').style.display = 'flex';
+}
+function closeSvcEditor() {
+  document.getElementById('svcEditorModal').style.display = 'none';
+}
+
+async function saveSvc() {
+  if (!supa || !CURRENT_USER || CURRENT_USER.is_anonymous) { toast('Inicia sesión para guardar servicios'); return; }
+  const name = document.getElementById('svc-name').value.trim();
+  const price = parseFloat(document.getElementById('svc-price').value) || 0;
+  const unit = document.getElementById('svc-unit').value.trim() || null;
+  if (!name) { toast('Escribe el nombre del servicio'); return; }
+  const editId = document.getElementById('svc-editing-id').value;
+  let error;
+  if (editId) {
+    ({ error } = await supa.from('services').update({ name, price, unit }).eq('id', editId).eq('user_id', CURRENT_USER.id));
+  } else {
+    ({ error } = await supa.from('services').insert({ user_id: CURRENT_USER.id, name, price, unit }));
+  }
+  if (error) { toast('Error: ' + error.message); return; }
+  closeSvcEditor();
+  await loadServices();
+  toast('Servicio guardado ✓');
+}
+
+async function deleteSvc() {
+  const editId = document.getElementById('svc-editing-id').value;
+  if (!editId) return;
+  if (!confirm('¿Eliminar este servicio del catálogo?')) return;
+  const { error } = await supa.from('services').delete().eq('id', editId).eq('user_id', CURRENT_USER.id);
+  if (error) { toast('Error al eliminar: ' + error.message); return; }
+  closeSvcEditor();
+  await loadServices();
+  toast('Servicio eliminado');
+}
+
+function renderSvcMgr() {
+  const el = document.getElementById('svcMgrList');
+  if (!el) return;
+  if (!CURRENT_USER || CURRENT_USER.is_anonymous) {
+    el.innerHTML = `<div class="cs" style="font-size:.8rem;color:var(--mu)">Inicia sesión para usar el catálogo.</div>`;
+    return;
+  }
+  if (!SVCS.length) {
+    el.innerHTML = `<div class="cs" style="font-size:.8rem;color:var(--mu)">Aún no tienes servicios guardados.</div>`;
+    return;
+  }
+  el.innerHTML = SVCS.map(s => `
+    <div class="svc-row">
+      <div>
+        <div class="svc-row-name">${_esc(s.name)}</div>
+        ${s.unit ? `<div style="font-size:.72rem;color:var(--mu)">${_esc(s.unit)}</div>` : ''}
+      </div>
+      <div style="display:flex;align-items:center;gap:.6rem">
+        <div class="svc-row-price">$${parseFloat(s.price).toFixed(2)}</div>
+        <button class="btn bo bsm" onclick="openSvcEditor(${s.id})" style="padding:.25rem .55rem;font-size:.7rem">Editar</button>
+      </div>
+    </div>
+  `).join('');
+}
+
 // Save reminder days on change
 document.addEventListener('change', e => {
   if (e.target.id==='set-remind-days') { localStorage.setItem('fpr4_remind_days', e.target.value); }
@@ -1944,6 +2121,7 @@ window.onload = async () => {
       updateTopbarAuth();
       bootOnce();
       loadProfile().catch(e => console.warn('[onAuthStateChange] loadProfile:', e.message));
+      loadServices().catch(e => console.warn('[onAuthStateChange] loadServices:', e.message));
     } else if (event === 'SIGNED_OUT') {
       CURRENT_USER = null;
       USER_PROFILE = { plan: 'free', invoices_this_month: 0, quotes_this_month: 0 };
