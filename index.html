@@ -1485,13 +1485,21 @@ function buildSigSection(inv) {
 function showPrev(inv) {
   CURRENT_INV = inv;
   refreshPreview(inv);
-  const msg=`${inv.type==='estimate'?'Estimado/a':'Hola'} ${inv.client}, le ${inv.type==='estimate'?'envío su cotización':'envío su factura'} de *${B.biz}*.\n\n📋 ${inv.num} — ${fd(inv.date)}\n\n${inv.lines.map(l=>`• ${l.desc}: $${(l.qty*l.price).toFixed(2)}`).join('\n')}\n\n*Total: $${inv.total.toFixed(2)}*\n\nGracias por confiar en nosotros. 🔧`;
   const ph=inv.phone?'1'+inv.phone.replace(/\D/g,''):'';
+  let msg, subj, body, smsMsg;
+  if (inv.status==='paid') {
+    msg=`Estimado/a ${inv.client}, confirmamos el recibo de su pago a *${B.biz}*.\n\n✅ ${inv.num} — PAGADO\nFecha de pago: ${fd(inv.paidDate||inv.date)}\n\n${inv.lines.map(l=>`• ${l.desc}: $${(l.qty*l.price).toFixed(2)}`).join('\n')}\n\n*Total cobrado: $${inv.total.toFixed(2)}*\n\nGracias por su pago. 🙏`;
+    subj=`Recibo de Pago ${inv.num} — ${B.biz}`;
+    body=`Estimado/a ${inv.client},\n\nConfirmamos el recibo de su pago:\n\n${inv.lines.map(l=>`• ${l.desc}: $${(l.qty*l.price).toFixed(2)}`).join('\n')}\n\nSubtotal: $${inv.sub.toFixed(2)}${inv.ivu>0?'\nIVU ('+inv.ivu+'%): $'+inv.tax.toFixed(2):''}\nTotal cobrado: $${inv.total.toFixed(2)}\nFecha de pago: ${fd(inv.paidDate||inv.date)}\n\nGracias por su pago.\n${B.owner}\n${B.biz}`;
+    smsMsg=`Recibo ${inv.num} — ${B.biz}. Total cobrado: $${inv.total.toFixed(2)} el ${fd(inv.paidDate||inv.date)}. Gracias por su pago.`;
+  } else {
+    msg=`${inv.type==='estimate'?'Estimado/a':'Hola'} ${inv.client}, le ${inv.type==='estimate'?'envío su cotización':'envío su factura'} de *${B.biz}*.\n\n📋 ${inv.num} — ${fd(inv.date)}\n\n${inv.lines.map(l=>`• ${l.desc}: $${(l.qty*l.price).toFixed(2)}`).join('\n')}\n\n*Total: $${inv.total.toFixed(2)}*\n\nGracias por confiar en nosotros. 🔧`;
+    subj=`${inv.type==='estimate'?'Cotización':'Factura'} ${inv.num} — ${B.biz}`;
+    body=`Estimado/a ${inv.client},\n\n${inv.type==='estimate'?'Adjunto su cotización:':'Adjunto su factura:'}\n\n${inv.lines.map(l=>`• ${l.desc}: $${(l.qty*l.price).toFixed(2)}`).join('\n')}\n\nSubtotal: $${inv.sub.toFixed(2)}\nIVU: $${inv.tax.toFixed(2)}\nTotal: $${inv.total.toFixed(2)}\n${inv.notes?'\nNota: '+inv.notes:''}\n\nGracias,\n${B.owner}\n${B.biz}`;
+    smsMsg=`${inv.type==='estimate'?'Cotización':'Factura'} ${inv.num} de ${B.biz} — Total: $${inv.total.toFixed(2)}.${inv.notes?' '+inv.notes:''} Gracias.`;
+  }
   document.getElementById('waBtn').dataset.href=`https://wa.me/${ph}?text=${encodeURIComponent(msg)}`;
-  const subj=`${inv.type==='estimate'?'Cotización':'Factura'} ${inv.num} — ${B.biz}`;
-  const body=`Estimado/a ${inv.client},\n\n${inv.type==='estimate'?'Adjunto su cotización:':'Adjunto su factura:'}\n\n${inv.lines.map(l=>`• ${l.desc}: $${(l.qty*l.price).toFixed(2)}`).join('\n')}\n\nSubtotal: $${inv.sub.toFixed(2)}\nIVU: $${inv.tax.toFixed(2)}\nTotal: $${inv.total.toFixed(2)}\n${inv.notes?'\nNota: '+inv.notes:''}\n\nGracias,\n${B.owner}\n${B.biz}`;
   document.getElementById('emailBtn').dataset.href=`mailto:${inv.email||''}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`;
-  const smsMsg=`${inv.type==='estimate'?'Cotización':'Factura'} ${inv.num} de ${B.biz} — Total: $${inv.total.toFixed(2)}.${inv.notes?' '+inv.notes:''} Gracias.`;
   document.getElementById('smsBtn').dataset.href=`sms:${inv.phone||''}?body=${encodeURIComponent(smsMsg)}`;
   document.getElementById('previewModal').classList.add('open');
   document.getElementById('previewModal').scrollTop=0;
@@ -1507,13 +1515,22 @@ function refreshPreview(inv) {
         <div class="pinfo">${B.owner}${[B.phone,B.town?B.town+', PR':''].filter(Boolean).length?'<br>'+[B.phone,B.town?B.town+', PR':''].filter(Boolean).join(' · '):''}</div>
       </div>
       <div class="pright">
-        <span class="pword">${isEst?'Cotización':'Factura'}</span>
+        <span class="pword">${inv.status==='paid'?'Recibo de Pago':isEst?'Cotización':'Factura'}</span>
         <span class="pnum">${inv.num||'BORRADOR'}</span>
         <span class="pdate">${fd(inv.date)}</span>
         ${isEst&&inv.validUntil?`<span class="pdate">Válida hasta: ${fd(inv.validUntil)}</span>`:''}
-        <span class="ptype-tag ${isEst?'estimate':'invoice'}">${isEst?'Cotización':'Factura'}</span>
+        <span class="ptype-tag ${inv.status==='paid'?'invoice':isEst?'estimate':'invoice'}">${inv.status==='paid'?'Factura':isEst?'Cotización':'Factura'}</span>
       </div>
     </div>
+    ${inv.status==='paid'?`
+    <div style="background:#ECFDF5;border:1.5px solid #6EE7B7;border-radius:10px;padding:.75rem 1rem;margin-bottom:1rem;display:flex;align-items:center;gap:.75rem">
+      <div style="width:36px;height:36px;background:#059669;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#fff;font-size:1.15rem;font-weight:700">✓</div>
+      <div style="flex:1">
+        <div style="font-weight:800;color:#059669;font-size:.88rem;text-transform:uppercase;letter-spacing:.04em">Pago Recibido</div>
+        <div style="font-size:.72rem;color:#065F46">${fd(inv.paidDate||inv.date)}</div>
+      </div>
+      <div style="font-weight:800;font-size:1.05rem;color:#059669">$${inv.total.toFixed(2)}</div>
+    </div>`:''}
     <div class="pcl">
       <div class="lbl">${isEst?'Cotización para':'Facturado a'}</div>
       <div class="nm">${inv.client}</div>
@@ -1570,9 +1587,16 @@ function openInv(id) {
 
 function toggleStatus(id) {
   const i=INV.find(x=>x.id===id); if(!i) return;
-  i.status = i.status==='paid'?'pending':'paid';
+  const newStatus = i.status==='paid'?'pending':'paid';
+  i.status = newStatus;
+  if (newStatus==='paid' && !i.paidDate) i.paidDate = new Date().toISOString().split('T')[0];
   save(); updateDash(); renderAll(); checkReminders();
-  toast(i.status==='paid'?'Marcado como cobrado ✓':'Marcado como pendiente');
+  if (newStatus==='paid') {
+    toast('Cobrado ✓ — Abriendo recibo…');
+    setTimeout(() => showPrev(i), 350);
+  } else {
+    toast('Marcado como pendiente');
+  }
 }
 function save(){localStorage.setItem('fpr4_inv',JSON.stringify(INV));}
 
