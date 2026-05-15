@@ -14,15 +14,12 @@ module.exports = async (req, res) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
   if (!token) return res.status(401).json({ error: 'No autorizado' });
 
-  const authClient = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
-  const { data: { user }, error: authErr } = await authClient.auth.getUser(token);
+  const adminClient = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+  const { data: { user }, error: authErr } = await adminClient.auth.getUser(token);
   if (authErr || !user) return res.status(401).json({ error: 'Token inválido' });
 
   const { invoiceId } = req.body;
   if (!invoiceId) return res.status(400).json({ error: 'invoiceId requerido' });
-
-  // Use service role to fetch, then verify ownership in code
-  const adminClient = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
   const { data: row, error } = await adminClient
     .from('invoices')
     .select('id, data, client_phone, num')
