@@ -7,9 +7,6 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-// Deshabilitar body parser — Stripe necesita el raw body para verificar firma
-export const config = { api: { bodyParser: false } };
-
 async function getRawBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -19,7 +16,7 @@ async function getRawBody(req) {
   });
 }
 
-module.exports = async (req, res) => {
+const handler = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).end();
 
   const rawBody = await getRawBody(req);
@@ -37,7 +34,6 @@ module.exports = async (req, res) => {
 
   try {
     switch (event.type) {
-      // Pago de factura completado
       case 'checkout.session.completed': {
         const session = event.data.object;
         const invoiceId = session.metadata?.supabase_invoice_id;
@@ -68,7 +64,6 @@ module.exports = async (req, res) => {
         break;
       }
 
-      // Suscripción activada o actualizada
       case 'customer.subscription.created':
       case 'customer.subscription.updated':
         if (subscription.status === 'active') {
@@ -88,7 +83,6 @@ module.exports = async (req, res) => {
         }
         break;
 
-      // Suscripción cancelada
       case 'customer.subscription.deleted':
         await supabase
           .from('profiles')
@@ -104,3 +98,7 @@ module.exports = async (req, res) => {
 
   res.json({ received: true });
 };
+
+// CJS-compatible config export — bodyParser must be disabled for Stripe signature verification
+handler.config = { api: { bodyParser: false } };
+module.exports = handler;

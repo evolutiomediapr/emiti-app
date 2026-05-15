@@ -1029,10 +1029,14 @@ async function startCheckout() {
   const orig = btn.textContent;
   btn.textContent = 'Redirigiendo…'; btn.classList.add('auth-loading');
   try {
+    const { data: { session: authSession } } = await supa.auth.getSession();
     const res = await fetch('/api/create-checkout-session', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: CURRENT_USER.id, email: CURRENT_USER.email })
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authSession.access_token}`
+      },
+      body: JSON.stringify({})
     });
     const { url, error } = await res.json();
     if (error) throw new Error(error);
@@ -1626,7 +1630,7 @@ async function syncInvToSupabase(inv) {
     client: inv.client,
     client_phone: inv.phone || null,
     client_email: inv.email || null,
-    data: JSON.stringify({ inv, biz: B, logo: LOGO, payments: PAYMENTS })
+    data: JSON.stringify({ inv: { ...inv, userId: CURRENT_USER?.id }, biz: B, logo: LOGO, payments: PAYMENTS })
   };
   console.log('[sync] iniciando — inv.id:', inv.id, '| supaId previo:', inv.supaId || 'ninguno', '| user:', CURRENT_USER?.id, '| anon:', CURRENT_USER?.is_anonymous);
   if (inv.supaId) {

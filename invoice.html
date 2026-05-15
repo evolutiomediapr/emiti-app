@@ -145,6 +145,16 @@ function fd(s) {
   return `${parseInt(d)} ${months[parseInt(m)-1]} ${y}`;
 }
 
+function esc(s) {
+  if (s == null) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+}
+
 function showError() {
   document.getElementById('loading').style.display = 'none';
   document.getElementById('error-box').style.display = 'flex';
@@ -171,20 +181,24 @@ function renderDoc(inv, biz, logo, payments) {
     ? `<div class="dstatus paid"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pagada</div>`
     : `<div class="dstatus pending"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Pendiente de pago</div>`;
 
-  const infoItems = [biz.owner, biz.phone, biz.town ? biz.town + ', PR' : ''].filter(Boolean);
+  const infoItems = [
+    biz.owner ? esc(biz.owner) : null,
+    biz.phone ? esc(biz.phone) : null,
+    biz.town  ? esc(biz.town) + ', PR' : null
+  ].filter(Boolean);
 
   const clientItems = [
-    inv.phone ? `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:3px"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.67A2 2 0 012 1h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>${inv.phone}` : '',
-    inv.email ? `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:3px"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="2,4 12,13 22,4"/></svg>${inv.email}` : '',
-    inv.addr ? `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:3px"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>${inv.addr}` : ''
+    inv.phone ? `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:3px"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.67A2 2 0 012 1h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>${esc(inv.phone)}` : '',
+    inv.email ? `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:3px"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="2,4 12,13 22,4"/></svg>${esc(inv.email)}` : '',
+    inv.addr ? `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:3px"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>${esc(inv.addr)}` : ''
   ].filter(Boolean);
 
   const rows = inv.lines.map(l => `
     <tr>
-      <td>${l.desc}</td>
-      <td>${l.qty}</td>
+      <td>${esc(l.desc)}</td>
+      <td>${esc(String(l.qty))}</td>
       <td>$${parseFloat(l.price).toFixed(2)}</td>
-      <td>$${(l.qty * l.price).toFixed(2)}</td>
+      <td>$${(parseFloat(l.qty) * parseFloat(l.price)).toFixed(2)}</td>
     </tr>`).join('');
 
   const wrap = document.getElementById('doc-wrap');
@@ -211,13 +225,13 @@ function renderDoc(inv, biz, logo, payments) {
     <div class="doc-card">
       <div class="dh">
         <div class="dh-left">
-          ${logo ? `<img src="${logo}" class="dlogo" alt="Logo">` : ''}
-          <div class="dbiz">${biz.biz || ''}</div>
+          ${logo && logo.startsWith('data:') ? `<img src="${logo}" class="dlogo" alt="Logo">` : ''}
+          <div class="dbiz">${esc(biz.biz)}</div>
           ${infoItems.length ? `<div class="dinfo">${infoItems.join('<br>')}</div>` : ''}
         </div>
         <div class="dh-right">
           <span class="dword">${label}</span>
-          <span class="dnum">${inv.num || ''}</span>
+          <span class="dnum">${esc(inv.num)}</span>
           <span class="ddate">${fd(inv.date)}</span>
           ${isEst && inv.validUntil ? `<span class="ddate">Válida hasta: ${fd(inv.validUntil)}</span>` : ''}
           <span class="dtype-tag ${isEst ? 'estimate' : 'invoice'}">${label}</span>
@@ -226,7 +240,7 @@ function renderDoc(inv, biz, logo, payments) {
 
       <div class="dcl">
         <div class="lbl">${isEst ? 'Cotización para' : 'Facturado a'}</div>
-        <div class="nm">${inv.client}</div>
+        <div class="nm">${esc(inv.client)}</div>
         ${clientItems.length ? `<div class="inf">${clientItems.join('<br>')}</div>` : ''}
       </div>
 
@@ -253,11 +267,11 @@ function renderDoc(inv, biz, logo, payments) {
         <div class="dgrand"><span>Total</span><span>$${parseFloat(inv.total||0).toFixed(2)}</span></div>
       </div>
 
-      ${inv.notes ? `<div class="dnotes">${inv.notes}</div>` : ''}
+      ${inv.notes ? `<div class="dnotes">${esc(inv.notes)}</div>` : ''}
       ${payHtml}
 
       <div class="dfooter">
-        Gracias por su preferencia.${biz.phone ? `<br>${biz.phone}` : ''}
+        Gracias por su preferencia.${biz.phone ? `<br>${esc(biz.phone)}` : ''}
         <br><span style="font-size:.65rem">Generado con <a href="https://emiti-app.vercel.app" style="color:var(--green);text-decoration:none;font-weight:700">Emiti</a></span>
       </div>
     </div>

@@ -1,23 +1,29 @@
 const twilio = require('twilio');
 const { createClient } = require('@supabase/supabase-js');
 
+const ALLOWED_ORIGIN = 'https://emiti-app.vercel.app';
+
 module.exports = async (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGIN);
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  // Verify caller identity — never trust invoiceId without proving ownership
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'No autorizado' });
+
+  const authClient = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
+  const { data: { user }, error: authErr } = await authClient.auth.getUser(token);
+  if (authErr || !user) return res.status(401).json({ error: 'Token inválido' });
 
   const { invoiceId } = req.body;
   if (!invoiceId) return res.status(400).json({ error: 'invoiceId requerido' });
 
-  const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-  );
-
-  // Verify the invoice exists before sending
-  const { data: row, error } = await supabase
+  // Use service role to fetch, then verify ownership in code
+  const adminClient = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+  const { data: row, error } = await adminClient
     .from('invoices')
     .select('id, data, client_phone, num')
     .or(`id.eq.${invoiceId},slug.eq.${invoiceId}`)
@@ -28,6 +34,11 @@ module.exports = async (req, res) => {
   let parsed;
   try { parsed = JSON.parse(row.data); } catch {
     return res.status(400).json({ error: 'Datos de factura inválidos' });
+  }
+
+  // Reject if the invoice doesn't belong to the authenticated user
+  if (parsed.inv?.userId !== user.id) {
+    return res.status(403).json({ error: 'No autorizado para esta factura' });
   }
 
   const { inv, biz } = parsed;
@@ -50,8 +61,7 @@ module.exports = async (req, res) => {
       to,
     });
 
-    // Mark reminder as sent
-    await supabase
+    await adminClient
       .from('invoices')
       .update({ reminder_sent: true })
       .eq('id', row.id);
