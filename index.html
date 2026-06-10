@@ -497,7 +497,7 @@ table.pt tr:last-child td{border-bottom:none}
       <div class="f"><label>Fecha</label><input type="date" id="f-date"></div>
       <div id="validity-wrap" class="f" style="display:none"><label>Válida hasta</label><input type="date" id="f-valid"></div>
       <div class="two">
-        <div class="f"><label>IVU (%)</label><input type="number" id="f-ivu" value="11.5" min="0" max="20" step="0.5" oninput="calc()"></div>
+        <div class="f"><label>Impuestos (%)</label><input type="number" id="f-ivu" value="11.5" min="0" max="20" step="0.5" oninput="calc()"></div>
         <div class="f"><label>Descuento ($)</label><input type="number" id="f-dsc" value="0" min="0" step="0.01" oninput="calc()"></div>
       </div>
       <div class="f"><label>Notas</label><textarea id="f-not" placeholder="Pago dentro de 7 días…" style="min-height:50px"></textarea></div>
@@ -522,7 +522,7 @@ table.pt tr:last-child td{border-bottom:none}
     <div class="tots">
       <div class="tr"><span>Subtotal</span><span id="t-sub">$0.00</span></div>
       <div class="tr"><span>Descuento</span><span id="t-dsc">- $0.00</span></div>
-      <div class="tr"><span>IVU (<span id="t-pct">11.5</span>%)</span><span id="t-ivu">$0.00</span></div>
+      <div class="tr"><span>Impuestos (<span id="t-pct">11.5</span>%)</span><span id="t-ivu">$0.00</span></div>
       <div class="tr grand"><span>Total</span><span id="t-tot">$0.00</span></div>
     </div>
 
@@ -954,7 +954,7 @@ function updatePlanBar() {
   const bar = document.getElementById('planBar');
   if (!bar || !CURRENT_USER || CURRENT_USER.is_anonymous) return;
   bar.style.display = 'flex';
-  const isPro = USER_PROFILE.plan === 'pro';
+  const isPro = USER_PROFILE?.plan === 'pro' || localStorage.getItem('fpr4_pro') === 'true';
   bar.className = 'plan-bar' + (isPro ? ' pro-bar' : '');
   if (isPro) {
     bar.innerHTML = `
