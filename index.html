@@ -345,6 +345,8 @@ table.pt tr:last-child td{border-bottom:none}
 /* ── UPGRADE MODAL ── */
 #upgradeModal{display:none;position:fixed;inset:0;background:rgba(17,25,21,.5);z-index:3000;align-items:center;justify-content:center;padding:1.6rem}
 #upgradeModal.open{display:flex}
+#deleteModal{display:none;position:fixed;inset:0;background:rgba(17,25,21,.5);z-index:3000;align-items:center;justify-content:center;padding:1.6rem}
+#deleteModal.open{display:flex}
 .upg-box{background:#fff;border-radius:var(--r);padding:1.8rem;width:100%;max-width:380px;box-shadow:var(--shm);text-align:center}
 .upg-icon{width:54px;height:54px;border-radius:16px;background:var(--gl);display:flex;align-items:center;justify-content:center;margin:0 auto 1rem}
 .upg-title{font-size:1.15rem;font-weight:700;margin-bottom:.35rem}
@@ -604,7 +606,10 @@ table.pt tr:last-child td{border-bottom:none}
       <div id="svcMgrList"><div class="cs" style="font-size:.8rem;color:var(--mu)">Cargando…</div></div>
     </div>
 
-    <div style="text-align:center;padding:1.3rem 0;font-size:.72rem;color:var(--mu)">Emiti v0.1 · emiti.app</div>
+    <div style="text-align:center;padding:1.3rem 0 .4rem">
+      <button onclick="document.getElementById('deleteModal').classList.add('open')" style="background:none;border:none;font-size:.7rem;color:var(--red);opacity:.6;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif">Eliminar cuenta</button>
+    </div>
+    <div style="text-align:center;padding:.2rem 0 1.3rem;font-size:.72rem;color:var(--mu)">Emiti v0.1 · emiti.app</div>
   </div>
 
   <button class="fab" id="fab" onclick="go('nueva')">+</button>
@@ -779,6 +784,15 @@ table.pt tr:last-child td{border-bottom:none}
     <div class="upg-note">Cancela cuando quieras</div>
     <button class="btn bg" style="width:100%;margin-bottom:.65rem" onclick="startCheckout()">Upgrade a Pro</button>
     <button class="btn bo" style="width:100%" onclick="document.getElementById('upgradeModal').classList.remove('open')">Ahora no</button>
+  </div>
+</div>
+
+<div id="deleteModal">
+  <div class="upg-box">
+    <div class="upg-title" style="color:var(--red)">Eliminar cuenta</div>
+    <div class="upg-sub" style="margin-bottom:1.4rem">¿Estás seguro? Esta acción eliminará permanentemente tu cuenta, todas tus facturas, cotizaciones y datos. No se puede deshacer.</div>
+    <button id="btn-delete-confirm" class="btn bg" style="width:100%;margin-bottom:.65rem;background:var(--red);border-color:var(--red)" onclick="deleteAccount()">Sí, eliminar mi cuenta</button>
+    <button class="btn bo" style="width:100%" onclick="document.getElementById('deleteModal').classList.remove('open')">Cancelar</button>
   </div>
 </div>
 
@@ -1046,6 +1060,24 @@ async function startCheckout() {
   } catch(e) {
     toast('Error al iniciar checkout: ' + e.message);
     btn.textContent = orig; btn.classList.remove('auth-loading');
+  }
+}
+
+// ── DELETE ACCOUNT ──
+async function deleteAccount() {
+  const btn = document.getElementById('btn-delete-confirm');
+  btn.textContent = 'Eliminando…'; btn.classList.add('auth-loading');
+  try {
+    if (supa && CURRENT_USER && !CURRENT_USER.is_anonymous) {
+      await supa.from('invoices').delete().eq('user_id', CURRENT_USER.id);
+      await supa.from('profiles').delete().eq('id', CURRENT_USER.id);
+      await supa.rpc('delete_user');
+    }
+    ['fpr4_biz','fpr4_bizsig','fpr4_inv','fpr4_logo','fpr4_pay','fpr4_pro','fpr4_remind_days','fpr4_usage'].forEach(k => localStorage.removeItem(k));
+    window.location.reload();
+  } catch(e) {
+    toast('Error al eliminar cuenta: ' + e.message);
+    btn.textContent = 'Sí, eliminar mi cuenta'; btn.classList.remove('auth-loading');
   }
 }
 
