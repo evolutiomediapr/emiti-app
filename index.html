@@ -1518,6 +1518,7 @@ function showPrev(inv) {
 }
 
 function refreshPreview(inv) {
+  const isPro = USER_PROFILE?.plan === 'pro' || localStorage.getItem('fpr4_pro') === 'true';
   const isEst = inv.type === 'estimate';
   document.getElementById('psheet').innerHTML=`
     <div class="psh">
@@ -1562,7 +1563,7 @@ function refreshPreview(inv) {
     ${buildPayBtns(inv)}
     ${buildSigSection(inv)}
     <div class="pfooter">Gracias por su preferencia.${B.phone?`<br>Contacto: ${B.phone}`:''}<br><span style="font-size:.62rem">Generado con Emiti · emiti.app</span></div>
-    ${USER_PROFILE.plan!=='pro'?'<div class="free-watermark">EMITI FREE</div>':''}
+    ${!isPro?'<div class="free-watermark">EMITI FREE</div>':''}
   `;
 }
 
