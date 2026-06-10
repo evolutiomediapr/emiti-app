@@ -982,21 +982,22 @@ function updatePlanBar() {
 }
 
 // ── LIMIT CHECK ──
+function getUsage() {
+  const d = new Date();
+  const currentMonth = `${d.getFullYear()}-${d.getMonth() + 1}`;
+  try {
+    const stored = JSON.parse(localStorage.getItem('fpr4_usage') || '{}');
+    if (stored.month === currentMonth) return stored;
+  } catch(e) {}
+  return { month: currentMonth, invoices: 0, estimates: 0 };
+}
+
 async function checkLimit(docType) {
   if (!supa || !CURRENT_USER || CURRENT_USER.is_anonymous) {
-    // Fallback localStorage para usuarios anónimos o sin auth
-    const key = docType === 'invoice' ? 'fpr4_inv_c' : 'fpr4_quo_c';
-    const periodKey = 'fpr4_period';
-    const d = new Date();
-    const period = `${d.getFullYear()}-${d.getMonth()}`;
-    if (localStorage.getItem(periodKey) !== period) {
-      localStorage.setItem(periodKey, period);
-      localStorage.setItem('fpr4_inv_c', '0');
-      localStorage.setItem('fpr4_quo_c', '0');
-    }
-    const count = parseInt(localStorage.getItem(key) || '0');
-    if (count >= FREE_LIMIT) { showUpgradeModal(docType); return false; }
-    localStorage.setItem(key, String(count + 1));
+    const u = getUsage();
+    const key = docType === 'invoice' ? 'invoices' : 'estimates';
+    console.log('Usage check:', u, 'key:', key, 'count:', u[key]);
+    if (u[key] >= FREE_LIMIT) { showUpgradeModal(docType); return false; }
     return true;
   }
 
@@ -1403,6 +1404,13 @@ async function saveDoc() {
       if (!allowed) return;
       // Guardar localmente primero — feedback inmediato sin depender de red
       INV.unshift(d); save(); checkReminders();
+      // Incrementar contador DESPUÉS de guardar exitosamente
+      if (!supa || !CURRENT_USER || CURRENT_USER.is_anonymous) {
+        const u = getUsage();
+        const uKey = docType === 'invoice' ? 'invoices' : 'estimates';
+        u[uKey] = (u[uKey] || 0) + 1;
+        localStorage.setItem('fpr4_usage', JSON.stringify(u));
+      }
       toast(d.type==='invoice'?'Factura guardada ✓':'Cotización guardada ✓');
       go('facturas');
       // Sync a Supabase en background — persiste supaId cuando completa
