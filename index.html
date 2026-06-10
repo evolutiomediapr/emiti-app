@@ -1563,8 +1563,20 @@ function refreshPreview(inv) {
     ${buildPayBtns(inv)}
     ${buildSigSection(inv)}
     <div class="pfooter">Gracias por su preferencia.${B.phone?`<br>Contacto: ${B.phone}`:''}<br><span style="font-size:.62rem">Generado con Emiti · emiti.app</span></div>
-    ${!isPro?'<div class="free-watermark">EMITI FREE</div>':''}
   `;
+  if (!isPro) {
+    const wm = document.getElementById('printWatermark');
+    if (!wm) {
+      const el = document.createElement('div');
+      el.id = 'printWatermark';
+      el.className = 'free-watermark';
+      el.textContent = 'EMITI FREE';
+      document.getElementById('previewModal').appendChild(el);
+    }
+  } else {
+    const wm = document.getElementById('printWatermark');
+    if (wm) wm.remove();
+  }
 }
 
 function closePrev() { document.getElementById('previewModal').classList.remove('open'); CURRENT_INV=null; }
