@@ -388,7 +388,7 @@ table.pt tr:last-child td{border-bottom:none}
     </div>
     <div class="f">
       <label>Logo (opcional)</label>
-      <div class="lbox" id="ob-lbox"><input type="file" accept="image/*" onchange="handleLogo(event)"><div class="lph" id="ob-lph"><span class="ei"><svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block;margin:0 auto 4px"><rect x="1" y="1" width="26" height="26" rx="7" stroke="#1A7A4A" stroke-width="1.8"/><path d="M14 19V10M14 10L10.5 13.5M14 10L17.5 13.5" stroke="#1A7A4A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><line x1="9" y1="21" x2="19" y2="21" stroke="#1A7A4A" stroke-width="1.8" stroke-linecap="round"/></svg></span>Toca para subir tu logo</div><img class="limg" id="ob-limg"></div>
+      <div class="lbox" id="ob-lbox" onclick="openLogoPicker()"><div class="lph" id="ob-lph"><span class="ei"><svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block;margin:0 auto 4px"><rect x="1" y="1" width="26" height="26" rx="7" stroke="#1A7A4A" stroke-width="1.8"/><path d="M14 19V10M14 10L10.5 13.5M14 10L17.5 13.5" stroke="#1A7A4A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><line x1="9" y1="21" x2="19" y2="21" stroke="#1A7A4A" stroke-width="1.8" stroke-linecap="round"/></svg></span>Toca para subir tu logo</div><img class="limg" id="ob-limg"></div>
     </div>
     <div style="height:.8rem"></div>
     <button class="btn bg bw" onclick="finish()">Comenzar →</button>
@@ -551,7 +551,7 @@ table.pt tr:last-child td{border-bottom:none}
     <div class="rh" style="margin-bottom:1rem"><span class="rl">Mi Negocio</span></div>
     <div class="block">
       <div class="bh">Logo</div>
-      <div class="lbox" id="set-lbox"><input type="file" accept="image/*" onchange="handleLogo(event)"><div class="lph" id="set-lph"><span class="ei"><svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block;margin:0 auto 4px"><rect x="1" y="1" width="26" height="26" rx="7" stroke="#1A7A4A" stroke-width="1.8"/><path d="M14 19V10M14 10L10.5 13.5M14 10L17.5 13.5" stroke="#1A7A4A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><line x1="9" y1="21" x2="19" y2="21" stroke="#1A7A4A" stroke-width="1.8" stroke-linecap="round"/></svg></span>Toca para cambiar tu logo</div><img class="limg" id="set-limg"></div>
+      <div class="lbox" id="set-lbox" onclick="openLogoPicker()"><div class="lph" id="set-lph"><span class="ei"><svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block;margin:0 auto 4px"><rect x="1" y="1" width="26" height="26" rx="7" stroke="#1A7A4A" stroke-width="1.8"/><path d="M14 19V10M14 10L10.5 13.5M14 10L17.5 13.5" stroke="#1A7A4A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><line x1="9" y1="21" x2="19" y2="21" stroke="#1A7A4A" stroke-width="1.8" stroke-linecap="round"/></svg></span>Toca para cambiar tu logo</div><img class="limg" id="set-limg"></div>
       <p style="font-size:.7rem;color:var(--mu);margin-top:.5rem;text-align:center">Aparece en todos tus documentos</p>
     </div>
 
@@ -2245,6 +2245,61 @@ window.onload = async () => {
     console.warn('[window.onload] getSession error:', e.message);
   }
 };
+</script>
+
+<!-- Logo source picker: shown on iOS to avoid the native camera action sheet -->
+<div id="logoSourceSheet" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;align-items:flex-end;justify-content:center" onclick="if(event.target===this)closeLogoSourceSheet()">
+  <div style="background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:500px;padding:1.2rem 1.2rem 2rem">
+    <div style="text-align:center;font-weight:600;margin-bottom:1rem;font-size:.95rem;color:var(--ink)">Subir Logo</div>
+    <button onclick="pickLogoFromGallery()" style="width:100%;padding:.85rem;border:none;background:var(--gxl);color:var(--green);border-radius:10px;font-size:.95rem;font-weight:600;margin-bottom:.6rem;cursor:pointer">Photo Library</button>
+    <button onclick="pickLogoFromFiles()" style="width:100%;padding:.85rem;border:none;background:var(--gxl);color:var(--green);border-radius:10px;font-size:.95rem;font-weight:600;margin-bottom:.8rem;cursor:pointer">Choose File</button>
+    <button onclick="closeLogoSourceSheet()" style="width:100%;padding:.75rem;border:none;background:#f0f0f0;color:#666;border-radius:10px;font-size:.9rem;cursor:pointer">Cancelar</button>
+  </div>
+</div>
+<!-- Hidden file input used only on web (non-iOS) -->
+<input type="file" id="logoFileInput" accept="image/*" style="display:none" onchange="handleLogo(event)">
+
+<script>
+// ── LOGO PICKER (sin cámara) ──
+function openLogoPicker() {
+  if (window.Capacitor && Capacitor.isNativePlatform()) {
+    document.getElementById('logoSourceSheet').style.display = 'flex';
+  } else {
+    document.getElementById('logoFileInput').click();
+  }
+}
+
+function closeLogoSourceSheet() {
+  document.getElementById('logoSourceSheet').style.display = 'none';
+}
+
+async function pickLogoFromGallery() {
+  closeLogoSourceSheet();
+  try {
+    const { FilePicker } = Capacitor.Plugins;
+    const result = await FilePicker.pickImages({ multiple: false, readData: true });
+    const f = result?.files?.[0];
+    if (!f) return;
+    LOGO = 'data:' + f.mimeType + ';base64,' + f.data;
+    localStorage.setItem('fpr4_logo', LOGO);
+    syncLogo();
+    toast('Logo guardado ✓');
+  } catch (_) {}
+}
+
+async function pickLogoFromFiles() {
+  closeLogoSourceSheet();
+  try {
+    const { FilePicker } = Capacitor.Plugins;
+    const result = await FilePicker.pickFiles({ multiple: false, readData: true, types: ['image/*'] });
+    const f = result?.files?.[0];
+    if (!f) return;
+    LOGO = 'data:' + f.mimeType + ';base64,' + f.data;
+    localStorage.setItem('fpr4_logo', LOGO);
+    syncLogo();
+    toast('Logo guardado ✓');
+  } catch (_) {}
+}
 </script>
 </body>
 </html>

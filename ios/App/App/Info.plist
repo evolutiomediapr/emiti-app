@@ -47,5 +47,7 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Emiti necesita acceso a tu galería para subir el logo de tu negocio.</string>
 </dict>
 </plist>
