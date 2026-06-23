@@ -263,7 +263,7 @@ function renderDoc(inv, biz, logo, payments) {
       <div class="dtots">
         <div class="drow"><span>Subtotal</span><span>$${parseFloat(inv.sub||0).toFixed(2)}</span></div>
         ${(inv.dsc||0) > 0 ? `<div class="drow"><span>Descuento</span><span>- $${parseFloat(inv.dsc).toFixed(2)}</span></div>` : ''}
-        ${(inv.ivu||0) > 0 ? `<div class="drow"><span>IVU (${inv.ivu}%)</span><span>$${parseFloat(inv.tax||0).toFixed(2)}</span></div>` : ''}
+        ${(inv.ivu||0) > 0 ? `<div class="drow"><span>Impuestos (${inv.ivu}%)</span><span>$${parseFloat(inv.tax||0).toFixed(2)}</span></div>` : ''}
         <div class="dgrand"><span>Total</span><span>$${parseFloat(inv.total||0).toFixed(2)}</span></div>
       </div>
 
@@ -321,9 +321,10 @@ async function init() {
   // Los enlaces usan el número de documento como slug (ej. COT-0001).
   // Por compatibilidad, si parece UUID se sigue buscando por id.
   const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug);
-  const { data, error } = await (isUUID
-    ? supa.from('invoices').select('data').eq('id', slug).single()
-    : supa.from('invoices').select('data').eq('slug', slug).single());
+  // maybeSingle() + order/limit: no rompe si quedara algún slug duplicado (devuelve el más reciente).
+  let query = supa.from('invoices').select('data').order('created_at', { ascending: false }).limit(1);
+  query = isUUID ? query.eq('id', slug) : query.eq('slug', slug);
+  const { data, error } = await query.maybeSingle();
 
   console.log('[invoice] Supabase error:', error?.message || null, '| data:', !!data);
 
