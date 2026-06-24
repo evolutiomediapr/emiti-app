@@ -99,6 +99,42 @@ table.dt tr:last-child td{border-bottom:none}
 /* ── FOOTER ── */
 .dfooter{padding:.9rem 1.4rem;text-align:center;font-size:.72rem;color:var(--mu);line-height:1.8}
 
+/* ── INVOICE TEMPLATES (Pro) ── classic = base styles above ── */
+/* Moderno */
+.tpl-modern .dh{background:#1A7A4A;border-bottom:none;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.tpl-modern .dbiz,.tpl-modern .dword,.tpl-modern .dnum{color:#fff}
+.tpl-modern .dinfo,.tpl-modern .ddate{color:rgba(255,255,255,.85)}
+.tpl-modern table.dt th{color:#1A7A4A;border-bottom-color:#1A7A4A}
+.tpl-modern .dgrand{background:#E8F5EE;border-top:none;border-radius:10px;padding:.5rem .8rem;color:#1A7A4A;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+/* Bold */
+.tpl-bold .dh{background:#111915;border-bottom:none;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.tpl-bold .dbiz{color:#fff;font-size:1.1rem}
+.tpl-bold .dinfo,.tpl-bold .dnum,.tpl-bold .ddate{color:rgba(255,255,255,.8)}
+.tpl-bold .dword{color:#C8821A;font-size:1.35rem;font-weight:800;text-transform:uppercase}
+.tpl-bold table.dt th{color:#111915;border-bottom:2px solid #111915}
+.tpl-bold .dgrand{border-top:3px solid #111915;color:#111915}
+.tpl-bold .dgrand span:last-child{color:#C8821A}
+/* Minimal */
+.tpl-minimal .dh{border-bottom:1px solid #ECECEC}
+.tpl-minimal .dbiz{font-weight:500}
+.tpl-minimal .dword{color:#1A1A1A;font-weight:500;letter-spacing:.05em;text-transform:uppercase;font-size:1rem}
+.tpl-minimal .dcl{background:#FAFAFA}
+.tpl-minimal .dcl .lbl{letter-spacing:.12em}
+.tpl-minimal table.dt th{color:#9AA39E;letter-spacing:.1em;font-weight:500}
+.tpl-minimal .dgrand{border-top:1px solid #1A1A1A;color:#1A1A1A;font-weight:600}
+.tpl-minimal .dnotes{background:#FAFAFA;color:#9AA39E}
+/* Elegante */
+.tpl-elegant .dbiz,.tpl-elegant .dword{font-family:Georgia,'Times New Roman',serif}
+.tpl-elegant .dh{border-bottom:2px solid #B08D57}
+.tpl-elegant .dbiz{color:#1E3A5F;font-size:1.15rem}
+.tpl-elegant .dword{color:#1E3A5F;font-weight:700}
+.tpl-elegant .dcl{background:#F7F9FB}
+.tpl-elegant .dcl .nm{color:#1E3A5F}
+.tpl-elegant table.dt th{color:#1E3A5F}
+.tpl-elegant .dgrand{border-top:2px solid #1E3A5F;color:#1E3A5F}
+.tpl-elegant .dgrand span:last-child{color:#B08D57}
+.tpl-elegant .dfooter{color:#B08D57}
+
 /* ── STATUS ── */
 .dstatus{padding:.65rem 1.4rem;border-bottom:1px solid var(--bd2);display:flex;align-items:center;gap:.5rem;font-size:.78rem;font-weight:600}
 .dstatus.paid{background:#F0FAF4;color:var(--green)}
@@ -201,6 +237,8 @@ function renderDoc(inv, biz, logo, payments) {
       <td>$${(parseFloat(l.qty) * parseFloat(l.price)).toFixed(2)}</td>
     </tr>`).join('');
 
+  const tpl = ['classic','modern','bold','minimal','elegant'].includes(biz.template) ? biz.template : 'classic';
+
   const wrap = document.getElementById('doc-wrap');
   wrap.innerHTML = `
     <div class="pub-badge">
@@ -222,7 +260,7 @@ function renderDoc(inv, biz, logo, payments) {
       </div>
     </div>` : ''}
 
-    <div class="doc-card">
+    <div class="doc-card tpl-${tpl}">
       <div class="dh">
         <div class="dh-left">
           ${logo && logo.startsWith('data:') ? `<img src="${logo}" class="dlogo" alt="Logo">` : ''}
