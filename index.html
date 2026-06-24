@@ -827,6 +827,12 @@ let LN = 0;
 let DOC_TYPE = 'invoice';
 let CURRENT_INV = null;
 let chartFilter = 'month';
+
+// Single source of truth for Pro status.
+function isProUser() {
+  return USER_PROFILE?.plan === 'pro' || localStorage.getItem('fpr4_pro') === 'true';
+}
+
 let chartCustomFrom = '';
 let chartCustomTo = '';
 let sigCanvases = {};
@@ -1107,9 +1113,12 @@ async function startIOSIAP() {
     if (!EmitIAP) throw new Error('Plugin IAP no disponible. Reinstala la app.');
     const result = await EmitIAP.purchasePro();
     if (result.success) {
-      const { error: upErr } = await supa.from('profiles').update({ plan: 'pro', is_pro: true }).eq('id', CURRENT_USER.id);
-      if (upErr) { console.error('[IAP] Error actualizando perfil a Pro:', upErr); throw new Error('Compra realizada pero no se pudo activar Pro: ' + upErr.message); }
-      USER_PROFILE = { ...USER_PROFILE, plan: 'pro', is_pro: true };
+      // Server-side Pro activation for iOS IAP is handled by a dedicated backend
+      // endpoint (with Apple receipt validation) — TODO: pending implementation.
+      // Direct client writes to profiles.plan are intentionally blocked by a DB
+      // trigger (only service_role may change the entitlement). For now we grant
+      // Pro locally on this device for the verified purchaser.
+      USER_PROFILE = { ...USER_PROFILE, plan: 'pro' };
       localStorage.setItem('fpr4_pro', 'true');
       document.getElementById('upgradeModal').classList.remove('open');
       updatePlanBar();
@@ -1131,9 +1140,9 @@ async function restoreIOSPurchases() {
     const { EmitIAP } = Capacitor.Plugins;
     const result = await EmitIAP.restorePurchases();
     if (result.restored) {
-      const { error: upErr } = await supa.from('profiles').update({ plan: 'pro', is_pro: true }).eq('id', CURRENT_USER.id);
-      if (upErr) { console.error('[IAP] Error actualizando perfil tras restaurar:', upErr); throw new Error('No se pudo activar Pro: ' + upErr.message); }
-      USER_PROFILE = { ...USER_PROFILE, plan: 'pro', is_pro: true };
+      // See note in startIOSIAP: server-side activation is handled by the (pending)
+      // backend endpoint; profiles.plan is locked to service_role. Grant locally.
+      USER_PROFILE = { ...USER_PROFILE, plan: 'pro' };
       localStorage.setItem('fpr4_pro', 'true');
       updatePlanBar();
       fillSettings();
