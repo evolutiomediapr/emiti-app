@@ -484,6 +484,12 @@ table.pt tr:last-child td{border-bottom:none}
       <div class="bh">Cliente</div>
       <div class="f"><label>Nombre *</label><input type="text" id="f-cli" placeholder="Juan Martínez"></div>
       <div class="f"><label>Teléfono</label><input type="tel" id="f-tel" placeholder="787-000-0000"></div>
+      <div class="f" style="margin-top:.1rem">
+        <label style="display:flex;align-items:flex-start;gap:.55rem;cursor:pointer;text-transform:none;font-size:.78rem;font-weight:400;color:var(--ink);letter-spacing:0;line-height:1.35">
+          <input type="checkbox" id="f-sms-consent" style="width:18px;height:18px;flex-shrink:0;margin-top:1px;accent-color:var(--green)">
+          <span>Mi cliente autorizó recibir notificaciones por SMS sobre sus facturas. Podrá cancelar respondiendo STOP.</span>
+        </label>
+      </div>
       <div class="f"><label>Email</label><input type="email" id="f-email" placeholder="cliente@email.com"></div>
       <div class="f"><label>Dirección / Descripción del trabajo</label><textarea id="f-adr" placeholder="Calle Sol 45, Bayamón — Reparación de plomería"></textarea></div>
     </div>
@@ -1473,6 +1479,8 @@ function getForm() {
     type:DOC_TYPE,
     client:document.getElementById('f-cli').value.trim(),
     phone:document.getElementById('f-tel').value.trim(),
+    smsConsent:document.getElementById('f-sms-consent').checked,
+    smsConsentDate:document.getElementById('f-sms-consent').checked?new Date().toISOString():'',
     email:document.getElementById('f-email').value.trim(),
     addr:document.getElementById('f-adr').value.trim(),
     date:document.getElementById('f-date').value,
@@ -1501,6 +1509,7 @@ async function saveDoc() {
         d.status = INV[idx].status; // Keep original status
         d.clientSig = INV[idx].clientSig; // Keep signature
         d.clientSigDate = INV[idx].clientSigDate;
+        if (d.smsConsent && INV[idx].smsConsentDate) d.smsConsentDate = INV[idx].smsConsentDate; // Keep original consent date
         INV[idx] = d;
       }
       window._editingId = null;
@@ -1552,6 +1561,7 @@ function prevCur() {
 function resetForm() {
   window._editingId = null;
   ['f-cli','f-tel','f-email','f-adr','f-not'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  document.getElementById('f-sms-consent').checked=false;
   document.getElementById('f-dsc').value='0'; document.getElementById('f-ivu').value='11.5';
   document.getElementById('liItems').innerHTML=''; LN=0;
   document.getElementById('f-date').value=new Date().toISOString().split('T')[0];
@@ -2176,6 +2186,7 @@ function editInv() {
     // Fill client fields
     document.getElementById('f-cli').value = inv.client || '';
     document.getElementById('f-tel').value = inv.phone || '';
+    document.getElementById('f-sms-consent').checked = !!inv.smsConsent;
     document.getElementById('f-email').value = inv.email || '';
     document.getElementById('f-adr').value = inv.addr || '';
     document.getElementById('f-date').value = inv.date || '';

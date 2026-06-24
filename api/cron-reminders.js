@@ -30,6 +30,14 @@ module.exports = async (req, res) => {
     return res.status(500).json({ error: error.message });
   }
 
+  // Load opted-out phone numbers (set by api/sms-webhook.js when a client texts STOP).
+  const optedOut = new Set();
+  const { data: optouts } = await supabase
+    .from('sms_optouts')
+    .select('phone')
+    .eq('opted_out', true);
+  for (const o of optouts || []) optedOut.add(o.phone);
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -59,6 +67,12 @@ module.exports = async (req, res) => {
       continue;
     }
 
+    // A2P 10DLC: only send when the business confirmed the client's SMS consent.
+    if (!inv.smsConsent) {
+      skipped.push({ num: inv.num, reason: 'sin consentimiento SMS' });
+      continue;
+    }
+
     const phone = inv.phone || row.client_phone;
     if (!phone) {
       skipped.push({ num: inv.num, reason: 'sin teléfono' });
@@ -66,10 +80,17 @@ module.exports = async (req, res) => {
     }
 
     const digits = phone.replace(/\D/g, '');
+
+    // Respect opt-out: client texted STOP (recorded by api/sms-webhook.js).
+    if (optedOut.has(digits.slice(-10))) {
+      skipped.push({ num: inv.num, reason: 'cliente canceló (STOP)' });
+      continue;
+    }
+
     const to = digits.length === 10 ? '+1' + digits : '+' + digits;
 
     const link = `https://emiti-app.vercel.app/invoice/${encodeURIComponent(inv.num)}`;
-    const body = `Hola ${inv.client}, su factura ${inv.num} de $${parseFloat(inv.total).toFixed(2)} con ${biz.biz} está vencida. Ver: ${link}`;
+    const body = `Hola ${inv.client}, su factura ${inv.num} de $${parseFloat(inv.total).toFixed(2)} con ${biz.biz} está vencida. Ver: ${link}\n\nResponde STOP para cancelar.`;
 
     try {
       const msg = await twilioClient.messages.create({

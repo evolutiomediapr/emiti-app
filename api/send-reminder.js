@@ -41,14 +41,31 @@ module.exports = async (req, res) => {
   const { inv, biz } = parsed;
   if (!inv || !biz) return res.status(400).json({ error: 'Estructura de datos incompleta' });
 
+  // A2P 10DLC: only send when the business confirmed the client's SMS consent.
+  if (!inv.smsConsent) {
+    return res.status(403).json({ error: 'El cliente no ha autorizado recibir notificaciones por SMS' });
+  }
+
   const phone = inv.phone || row.client_phone;
   if (!phone) return res.status(400).json({ error: 'El cliente no tiene número de teléfono' });
 
-  const to = '+1' + phone.replace(/\D/g, '');
+  const digits = phone.replace(/\D/g, '');
+
+  // Respect opt-out: client texted STOP (recorded by api/sms-webhook.js).
+  const { data: optout } = await adminClient
+    .from('sms_optouts')
+    .select('opted_out')
+    .eq('phone', digits.slice(-10))
+    .maybeSingle();
+  if (optout?.opted_out) {
+    return res.status(409).json({ error: 'El cliente canceló los mensajes (respondió STOP)' });
+  }
+
+  const to = '+1' + digits;
   if (to.length !== 12) return res.status(400).json({ error: 'Número de teléfono inválido: ' + phone });
 
   const link = `https://emiti-app.vercel.app/invoice/${encodeURIComponent(inv.num)}`;
-  const body = `Hola ${inv.client}, su factura ${inv.num} de $${parseFloat(inv.total).toFixed(2)} con ${biz.biz} está vencida. Ver: ${link}`;
+  const body = `Hola ${inv.client}, su factura ${inv.num} de $${parseFloat(inv.total).toFixed(2)} con ${biz.biz} está vencida. Ver: ${link}\n\nResponde STOP para cancelar.`;
 
   try {
     const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
