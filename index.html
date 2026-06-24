@@ -1123,31 +1123,12 @@ function getUsage() {
   return { month: currentMonth, invoices: 0, estimates: 0 };
 }
 
-async function checkLimit(docType) {
-  if (!supa || !CURRENT_USER || CURRENT_USER.is_anonymous) {
-    const u = getUsage();
-    const key = docType === 'invoice' ? 'invoices' : 'estimates';
-    console.log('Usage check:', u, 'key:', key, 'count:', u[key]);
-    if (u[key] >= FREE_LIMIT) { showUpgradeModal(docType); return false; }
-    return true;
-  }
-
-  console.log('[checkLimit] llamando RPC para user:', CURRENT_USER.id, 'type:', docType);
-  const { data, error } = await supa.rpc('check_limit_and_increment', {
-    p_user_id: CURRENT_USER.id,
-    p_type: docType
-  });
-  console.log('[checkLimit] RPC resultado:', { data, error: error?.message });
-  if (error) { console.error('[checkLimit] error RPC:', error); return true; } // allow on error
-  if (!data || !data.allowed) {
-    console.log('[checkLimit] no permitido, razón:', data?.reason);
-    showUpgradeModal(docType); return false;
-  }
-  if (docType === 'invoice') USER_PROFILE.invoices_this_month = (USER_PROFILE.invoices_this_month || 0) + 1;
-  else USER_PROFILE.quotes_this_month = (USER_PROFILE.quotes_this_month || 0) + 1;
-  updatePlanBar();
-  return true;
-}
+// NOTE: el límite del plan free se enforca server-side via el trigger
+// enforce_invoice_limit (BEFORE INSERT en invoices), que delega en el RPC
+// check_limit_and_increment. El bloqueo real ocurre en saveDoc() al sincronizar
+// (cloud-first). getUsage()/fpr4_usage queda solo como fallback anónimo/offline
+// y para UI. La antigua checkLimit() fue removida (nunca se llamaba y pasaba
+// 'estimate' en vez de 'quote', que el RPC rechaza).
 
 function showUpgradeModal(docType) {
   const label = docType === 'invoice' ? 'facturas' : 'cotizaciones';
@@ -1614,29 +1595,49 @@ async function saveDoc() {
         console.warn('[saveDoc] update sync error:', e);
         if (CURRENT_USER && !CURRENT_USER.is_anonymous) toast('⚠️ Cambios guardados localmente, pero no se sincronizaron a la nube');
       });
+    } else if (supa && CURRENT_USER && !CURRENT_USER.is_anonymous) {
+      // Nuevo documento (sesión real) — el límite del plan free se enforca SERVER-SIDE.
+      // Cloud-first: el insert pasa por el trigger enforce_invoice_limit, que rechaza
+      // a usuarios free por encima del límite. No se puede burlar borrando localStorage,
+      // ni insertando directo (el trigger corre en todo INSERT). Solo creamos el doc
+      // localmente si la nube lo acepta (o si el error es ajeno al límite).
+      let synced = false;
+      try {
+        await syncInvToSupabase(d);
+        synced = true;
+      } catch (e) {
+        if (/monthly_limit_reached/i.test(e.message || '')) {
+          showUpgradeModal(d.type);
+          return;
+        }
+        // Error no relacionado al límite (ej. offline): conservamos resiliencia
+        // local-first; el sync se reintenta al compartir (ensureShareable).
+        console.warn('[saveDoc] sync error (no-límite), guardando local:', e.message);
+      }
+      INV.unshift(d); save(); checkReminders();
+      if (synced) {
+        // El contador autoritativo vive en profiles (server). Reflejo optimista en UI.
+        if (d.type === 'invoice') USER_PROFILE.invoices_this_month = (USER_PROFILE.invoices_this_month || 0) + 1;
+        else USER_PROFILE.quotes_this_month = (USER_PROFILE.quotes_this_month || 0) + 1;
+        updatePlanBar();
+      }
+      toast(d.type==='invoice'?'Factura guardada ✓':'Cotización guardada ✓');
+      go('facturas');
     } else {
-      // Nuevo documento — verificar límite
+      // Sin sesión real (anónimo/offline): no hay enforcement server-side posible;
+      // el contador local es la única defensa disponible (best-effort).
       const isPro = isProUser();
       const u = getUsage();
       const key = d.type === 'invoice' ? 'invoices' : 'estimates';
-      console.log('Usage check:', u, 'key:', key, 'count:', u[key]);
       if (!isPro && u[key] >= 3) {
         document.getElementById('upgradeModal').classList.add('open');
         return;
       }
-      // guardar primero, luego incrementar
       INV.unshift(d); save(); checkReminders();
       u[key]++;
       localStorage.setItem('fpr4_usage', JSON.stringify(u));
       toast(d.type==='invoice'?'Factura guardada ✓':'Cotización guardada ✓');
       go('facturas');
-      // Sync a Supabase en background — persiste supaId cuando completa. El guardado
-      // se vuelve a garantizar al compartir (ensureShareable). Avisamos si falla con sesión real.
-      syncInvToSupabase(d).then(() => { save(); console.log('[saveDoc] sync OK, supaId:', d.supaId); })
-                          .catch(e => {
-                            console.warn('[saveDoc] insert sync error:', e);
-                            if (CURRENT_USER && !CURRENT_USER.is_anonymous) toast('⚠️ Guardado local, pero no se sincronizó a la nube');
-                          });
     }
   } catch (e) {
     console.error('[saveDoc] ERROR:', e);
