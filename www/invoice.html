@@ -72,6 +72,7 @@ table.dt th:not(:first-child){text-align:right}
 table.dt td{padding:.55rem .5rem .55rem 0;border-bottom:1px solid var(--bd2);vertical-align:top;color:var(--ink)}
 table.dt td:not(:first-child){text-align:right;white-space:nowrap;color:var(--ink2)}
 table.dt tr:last-child td{border-bottom:none}
+.dmk{font-size:.66rem;color:var(--mu);font-weight:400;margin-top:.15rem}
 
 /* ── TOTALS ── */
 .dtots{padding:.8rem 1.4rem 1rem;border-bottom:1px solid var(--bd2)}
@@ -231,13 +232,19 @@ function renderDoc(inv, biz, logo, payments) {
     inv.addr ? `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:3px"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>${esc(inv.addr)}` : ''
   ].filter(Boolean);
 
-  const rows = inv.lines.map(l => `
+  const rows = inv.lines.map(l => {
+    const mk = parseFloat(l.markup) || 0;
+    const cost = parseFloat(l.price) || 0;
+    const unit = cost * (1 + mk/100);
+    const showBreak = inv.showMarkup && mk > 0;
+    return `
     <tr>
-      <td>${esc(l.desc)}</td>
+      <td>${esc(l.desc)}${showBreak ? `<div class="dmk">Costo $${cost.toFixed(2)} · Margen ${mk}%</div>` : ''}</td>
       <td>${esc(String(l.qty))}</td>
-      <td>$${parseFloat(l.price).toFixed(2)}</td>
-      <td>$${(parseFloat(l.qty) * parseFloat(l.price)).toFixed(2)}</td>
-    </tr>`).join('');
+      <td>$${unit.toFixed(2)}</td>
+      <td>$${(parseFloat(l.qty) * unit).toFixed(2)}</td>
+    </tr>`;
+  }).join('');
 
   const tpl = ['classic','modern','bold','minimal','elegant'].includes(biz.template) ? biz.template : 'classic';
 

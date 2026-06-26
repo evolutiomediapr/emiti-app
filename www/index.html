@@ -121,7 +121,15 @@ textarea{resize:vertical;min-height:66px;line-height:1.5}
 .li{background:var(--bg);border:1px solid var(--bd2);border-radius:var(--rs);padding:.7rem;margin-bottom:.5rem}
 .lig{display:grid;grid-template-columns:1fr 50px 68px 26px;gap:.4rem;align-items:center}
 .lig input{padding:.48rem .6rem;font-size:.82rem;background:#fff;border-color:var(--bd2)}
-.lisub{display:flex;justify-content:flex-end;font-size:.77rem;font-weight:700;color:var(--green);margin-top:.3rem;padding-right:30px}
+.lisub{font-size:.77rem;font-weight:700;color:var(--green);white-space:nowrap}
+/* Pro markup sub-row under each line */
+.lifoot{display:flex;justify-content:space-between;align-items:center;gap:.5rem;margin-top:.4rem;padding-right:30px}
+.limk{display:flex;align-items:center;gap:.3rem;font-size:.72rem;color:var(--mu);flex-wrap:wrap}
+.limk-in{width:48px;padding:.22rem .35rem;font-size:.74rem;text-align:right;background:#fff;border:1px solid var(--bd2);border-radius:6px}
+.limk-hint{color:var(--mu);font-size:.68rem}
+.limk-locked{background:none;border:none;cursor:pointer;display:flex;align-items:center;gap:.35rem;font-size:.72rem;color:var(--mu);padding:0;font-family:inherit}
+/* breakdown sub-line in the preview */
+.pmk{font-size:.62rem;color:var(--mu);font-weight:400;margin-top:.15rem}
 .del{width:26px;height:26px;border-radius:50%;background:#fff;border:1px solid var(--bd);color:var(--mu);font-size:.72rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .13s}
 .del:hover{background:var(--rl);color:var(--red);border-color:rgba(192,57,43,.2)}
 
@@ -587,6 +595,11 @@ table.pt tr:last-child td{border-bottom:none}
       <div class="two">
         <div class="f"><label>Impuestos (%)</label><input type="number" id="f-ivu" value="11.5" min="0" max="20" step="0.5" oninput="calc()"></div>
         <div class="f"><label>Descuento ($)</label><input type="number" id="f-dsc" value="0" min="0" step="0.01" oninput="calc()"></div>
+      </div>
+      <div class="f" id="showmk-wrap" style="display:none">
+        <label style="display:flex;align-items:center;gap:.5rem;font-size:.8rem;cursor:pointer">
+          <input type="checkbox" id="f-showmk"> Mostrar desglose de markup al cliente
+        </label>
       </div>
       <div class="f"><label>Notas</label><textarea id="f-not" placeholder="Pago dentro de 7 días…" style="min-height:50px"></textarea></div>
     </div>
@@ -1585,27 +1598,45 @@ function setDocType(type, el) {
 function addLi() {
   LN++;
   const id = LN;
+  const pro = isProUser();
   const d = document.createElement('div');
   d.className = 'li'; d.id = 'li'+id;
   d.innerHTML = `<div class="lig">
     <input type="text" placeholder="Descripción" id="ld${id}" oninput="calc()">
     <input type="number" placeholder="Cant" value="1" min="0" id="lq${id}" oninput="calcLi(${id})">
-    <input type="number" placeholder="$0.00" min="0" step="0.01" id="lp${id}" oninput="calcLi(${id})">
+    <input type="number" placeholder="${pro ? 'Costo' : '$0.00'}" min="0" step="0.01" id="lp${id}" oninput="calcLi(${id})">
     <button class="del" onclick="rmLi(${id})">✕</button>
-  </div><div class="lisub" id="ls${id}">$0.00</div>`;
+  </div>
+  <div class="lifoot">
+    ${pro
+      ? `<div class="limk">Markup <input type="number" class="limk-in" placeholder="0" min="0" step="1" id="lm${id}" oninput="calcLi(${id})">%<span class="limk-hint" id="lh${id}"></span></div>`
+      : `<button type="button" class="limk-locked" onclick="markupUpsell()">+ Markup <span class="tpl-pro-badge">PRO</span></button>`}
+    <div class="lisub" id="ls${id}">$0.00</div>
+  </div>`;
   document.getElementById('liItems').appendChild(d);
 }
+
+// Non-Pro tapping the markup affordance -> same upgrade modal as templates/color.
+function markupUpsell() { document.getElementById('upgradeModal').classList.add('open'); }
 function rmLi(id) { const el=document.getElementById('li'+id); if(el) el.remove(); calc(); }
 function calcLi(id) {
   const q=parseFloat(document.getElementById('lq'+id)?.value)||0;
   const p=parseFloat(document.getElementById('lp'+id)?.value)||0;
-  const el=document.getElementById('ls'+id); if(el) el.textContent='$'+(q*p).toFixed(2); calc();
+  const mk=parseFloat(document.getElementById('lm'+id)?.value)||0;
+  const unit=p*(1+mk/100);
+  const el=document.getElementById('ls'+id); if(el) el.textContent='$'+(q*unit).toFixed(2);
+  const hint=document.getElementById('lh'+id);
+  if(hint) hint.textContent = mk>0 ? `· Costo $${p.toFixed(2)} → $${unit.toFixed(2)}` : '';
+  calc();
 }
 function calc() {
   let sub=0;
   document.querySelectorAll('[id^="lq"]').forEach(el=>{
     const id=el.id.replace('lq','');
-    sub+=(parseFloat(el.value)||0)*(parseFloat(document.getElementById('lp'+id)?.value)||0);
+    const q=parseFloat(el.value)||0;
+    const p=parseFloat(document.getElementById('lp'+id)?.value)||0;
+    const mk=parseFloat(document.getElementById('lm'+id)?.value)||0;
+    sub+=q*p*(1+mk/100);
   });
   const dsc=parseFloat(document.getElementById('f-dsc')?.value)||0;
   const ivu=parseFloat(document.getElementById('f-ivu')?.value)||0;
@@ -1628,7 +1659,13 @@ function getForm() {
     const id=el.id.replace('lq','');
     const desc=(document.getElementById('ld'+id)?.value||'').trim();
     const qty=parseFloat(el.value)||0; const price=parseFloat(document.getElementById('lp'+id)?.value)||0;
-    if(desc||price){lines.push({desc:desc||'Servicio',qty,price}); sub+=qty*price;}
+    const markup=parseFloat(document.getElementById('lm'+id)?.value)||0;
+    if(desc||price){
+      const line={desc:desc||'Servicio',qty,price};
+      if(markup>0) line.markup=markup;          // solo se guarda si >0 (docs viejos/free intactos)
+      lines.push(line);
+      sub+=qty*price*(1+markup/100);
+    }
   });
   const dsc=parseFloat(document.getElementById('f-dsc').value)||0;
   const ivuStr=document.getElementById('f-ivu').value;
@@ -1650,7 +1687,8 @@ function getForm() {
     validUntil:document.getElementById('f-valid')?.value||'',
     notes:document.getElementById('f-not').value.trim(),
     bizSig: BIZ_SIG,
-    lines, sub, dsc, ivu, tax, total:taxable+tax, status:'pending'
+    lines, sub, dsc, ivu, tax, total:taxable+tax, status:'pending',
+    showMarkup: document.getElementById('f-showmk')?.checked || false
   };
 }
 
@@ -1746,6 +1784,8 @@ function resetForm() {
   ['f-cli','f-tel','f-email','f-adr','f-not'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('f-sms-consent').checked=false;
   document.getElementById('f-dsc').value='0'; document.getElementById('f-ivu').value='11.5';
+  const smk=document.getElementById('f-showmk'); if(smk) smk.checked=false;
+  document.getElementById('showmk-wrap').style.display = isProUser() ? 'block' : 'none';
   document.getElementById('liItems').innerHTML=''; LN=0;
   document.getElementById('f-date').value=new Date().toISOString().split('T')[0];
   DOC_TYPE='invoice';
@@ -1867,7 +1907,10 @@ function refreshPreview(inv) {
     </div>
     <table class="pt">
       <thead><tr><th>Descripción</th><th style="text-align:center">Cant</th><th style="text-align:right">Precio</th><th>Total</th></tr></thead>
-      <tbody>${inv.lines.map(l=>`<tr><td>${l.desc}</td><td style="text-align:center">${l.qty}</td><td style="text-align:right">$${l.price.toFixed(2)}</td><td class="w">$${(l.qty*l.price).toFixed(2)}</td></tr>`).join('')}</tbody>
+      <tbody>${inv.lines.map(l=>{
+        const mk=l.markup||0; const unit=l.price*(1+mk/100); const showBreak=inv.showMarkup&&mk>0;
+        return `<tr><td>${l.desc}${showBreak?`<div class="pmk">Costo $${l.price.toFixed(2)} · Margen ${mk}%</div>`:''}</td><td style="text-align:center">${l.qty}</td><td style="text-align:right">$${unit.toFixed(2)}</td><td class="w">$${(l.qty*unit).toFixed(2)}</td></tr>`;
+      }).join('')}</tbody>
     </table>
     <div class="ptots">
       <div class="prow"><span>Subtotal</span><span>$${inv.sub.toFixed(2)}</span></div>
@@ -2490,8 +2533,11 @@ function editInv() {
       document.getElementById('ld'+id).value = l.desc || '';
       document.getElementById('lq'+id).value = l.qty || 1;
       document.getElementById('lp'+id).value = l.price || 0;
+      const mkEl = document.getElementById('lm'+id);
+      if (mkEl && l.markup) mkEl.value = l.markup;
       calcLi(id);
     });
+    const smk = document.getElementById('f-showmk'); if (smk) smk.checked = !!inv.showMarkup;
 
     // Mark as editing this invoice
     window._editingId = inv.id;
