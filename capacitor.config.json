@@ -1,5 +1,14 @@
 {
   "appId": "app.emiti.app",
   "appName": "Emiti",
-  "webDir": "www"
+  "webDir": "www",
+  "packageClassList": [
+    "FilePickerPlugin",
+    "EmitIAPPlugin"
+  ],
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
 }

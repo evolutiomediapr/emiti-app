@@ -3,7 +3,13 @@ import Capacitor
 import StoreKit
 
 @objc(EmitIAPPlugin)
-public class EmitIAPPlugin: CAPPlugin {
+public class EmitIAPPlugin: CAPPlugin, CAPBridgedPlugin {
+    public let identifier = "EmitIAPPlugin"
+    public let jsName = "EmitIAP"
+    public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "purchasePro", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "restorePurchases", returnType: CAPPluginReturnPromise)
+    ]
 
     private let productID = "app.emiti.app.pro.monthly"
 
@@ -26,7 +32,9 @@ public class EmitIAPPlugin: CAPPlugin {
                         call.resolve([
                             "success": true,
                             "transactionId": String(transaction.id),
-                            "productId": transaction.productID
+                            "originalTransactionId": String(transaction.originalID),
+                            "productId": transaction.productID,
+                            "jws": verification.jwsRepresentation
                         ])
                     case .unverified(_, let error):
                         call.reject("Unverified transaction: \(error.localizedDescription)")
@@ -46,17 +54,22 @@ public class EmitIAPPlugin: CAPPlugin {
 
     @objc func restorePurchases(_ call: CAPPluginCall) {
         Task {
-            var restored = false
             for await result in Transaction.currentEntitlements {
                 if case .verified(let transaction) = result,
                    transaction.productID == productID,
                    transaction.revocationDate == nil {
                     await transaction.finish()
-                    restored = true
-                    break
+                    call.resolve([
+                        "restored": true,
+                        "transactionId": String(transaction.id),
+                        "originalTransactionId": String(transaction.originalID),
+                        "productId": transaction.productID,
+                        "jws": result.jwsRepresentation
+                    ])
+                    return
                 }
             }
-            call.resolve(["restored": restored])
+            call.resolve(["restored": false])
         }
     }
 }
