@@ -267,28 +267,41 @@ table.pt tr:last-child td{border-bottom:none}
 .tpl-pro-badge{font-size:.54rem;font-weight:800;color:#fff;background:var(--green);padding:.08rem .3rem;border-radius:4px;letter-spacing:.04em}
 .tpl-check{position:absolute;top:.5rem;right:.5rem;width:18px;height:18px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.7rem}
 .tpl-lock{position:absolute;top:.5rem;right:.5rem;color:var(--mu)}
+/* Accent color swatches (only shown for the 4 Pro templates) */
+.tpl-color-row{margin-top:1rem;display:none}
+.tpl-color-row.show{display:block}
+.tpl-color-label{font-size:.7rem;font-weight:800;color:var(--mu);margin-bottom:.55rem;display:flex;align-items:center;gap:.35rem;letter-spacing:.02em}
+.tpl-swatches{display:flex;flex-wrap:wrap;gap:.55rem;align-items:center}
+.tpl-sw{width:30px;height:30px;border-radius:50%;cursor:pointer;box-shadow:0 0 0 1px var(--bd);position:relative;transition:transform .12s}
+.tpl-sw:active{transform:scale(.9)}
+.tpl-sw.sel{box-shadow:0 0 0 2px #fff,0 0 0 4px rgba(17,25,21,.4)}
+.tpl-sw.sel::after{content:'';position:absolute;left:50%;top:48%;width:5px;height:9px;border:solid #fff;border-width:0 2px 2px 0;transform:translate(-50%,-50%) rotate(45deg)}
+.tpl-sw-def{width:auto;height:30px;border-radius:15px;padding:0 .7rem;display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:800;color:#fff;letter-spacing:.05em}
+.tpl-sw-def.sel::after{display:none}
 /* ── INVOICE TEMPLATES (Pro) ── classic = base styles above ── */
-/* Moderno: green header band */
-.tpl-modern .psh{background:#1A7A4A;margin:-1.8rem -1.6rem 1.3rem;padding:1.4rem 1.6rem;border-bottom:none;border-radius:16px 16px 0 0;color:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+/* Accent color is driven by --accent / --accent-tint (set inline on #psheet).
+   Fallbacks = each template's original default, so unstyled = current look. */
+/* Moderno: accent header band */
+.tpl-modern .psh{background:var(--accent,#1A7A4A);margin:-1.8rem -1.6rem 1.3rem;padding:1.4rem 1.6rem;border-bottom:none;border-radius:16px 16px 0 0;color:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .tpl-modern .pbiz{color:#fff}
 .tpl-modern .pinfo{color:rgba(255,255,255,.85)}
 .tpl-modern .pword{color:#fff}
 .tpl-modern .pnum,.tpl-modern .pdate{color:rgba(255,255,255,.85)}
-.tpl-modern table.pt thead tr{border-bottom-color:#1A7A4A}
-.tpl-modern table.pt th{color:#1A7A4A}
-.tpl-modern .pgrand{background:#E8F5EE;border-top:none;border-radius:10px;padding:.6rem 1rem;color:#1A7A4A;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-.tpl-modern .pgrand span:last-child{color:#1A7A4A}
-/* Bold: charcoal header, amber accent */
+.tpl-modern table.pt thead tr{border-bottom-color:var(--accent,#1A7A4A)}
+.tpl-modern table.pt th{color:var(--accent,#1A7A4A)}
+.tpl-modern .pgrand{background:var(--accent-tint,#E8F5EE);border-top:none;border-radius:10px;padding:.6rem 1rem;color:var(--accent,#1A7A4A);-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.tpl-modern .pgrand span:last-child{color:var(--accent,#1A7A4A)}
+/* Bold: charcoal header (fixed), accent = the amber slot */
 .tpl-bold .psh{background:#111915;margin:-1.8rem -1.6rem 1.3rem;padding:1.4rem 1.6rem;border-bottom:none;border-radius:16px 16px 0 0;color:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .tpl-bold .pbiz{color:#fff;font-size:1.15rem}
 .tpl-bold .pinfo{color:rgba(255,255,255,.8)}
-.tpl-bold .pword{color:#C8821A;font-size:1.5rem;font-weight:800;text-transform:uppercase}
+.tpl-bold .pword{color:var(--accent,#C8821A);font-size:1.5rem;font-weight:800;text-transform:uppercase}
 .tpl-bold .pnum,.tpl-bold .pdate{color:rgba(255,255,255,.8)}
 .tpl-bold table.pt thead tr{border-bottom:2px solid #111915}
 .tpl-bold table.pt th{color:#111915}
 .tpl-bold .pgrand{border-top:3px solid #111915;color:#111915;font-size:1.3rem}
-.tpl-bold .pgrand span:last-child{color:#C8821A}
-/* Minimal: monochrome, airy */
+.tpl-bold .pgrand span:last-child{color:var(--accent,#C8821A)}
+/* Minimal: monochrome, airy — accent only on the grand total */
 .tpl-minimal .psh{border-bottom:1px solid #ECECEC}
 .tpl-minimal .pbiz{font-weight:500;color:#1A1A1A}
 .tpl-minimal .pinfo{color:#9AA39E}
@@ -298,18 +311,18 @@ table.pt tr:last-child td{border-bottom:none}
 .tpl-minimal table.pt thead tr{border-bottom:1px solid #ECECEC}
 .tpl-minimal table.pt th{color:#9AA39E;letter-spacing:.1em;font-weight:500}
 .tpl-minimal table.pt td{border-bottom-color:#F3F3F3}
-.tpl-minimal .pgrand{border-top:1px solid #1A1A1A;color:#1A1A1A;font-weight:500}
-.tpl-minimal .pgrand span:last-child{color:#1A1A1A}
+.tpl-minimal .pgrand{border-top:1px solid var(--accent,#1A1A1A);color:var(--accent,#1A1A1A);font-weight:500}
+.tpl-minimal .pgrand span:last-child{color:var(--accent,#1A1A1A)}
 .tpl-minimal .pnotes{background:#FAFAFA;color:#9AA39E}
-/* Elegante: system serif, navy + gold */
+/* Elegante: system serif — accent = the navy slot, gold stays fixed */
 .tpl-elegant .pbiz,.tpl-elegant .pword{font-family:Georgia,'Times New Roman',serif}
 .tpl-elegant .psh{border-bottom:2px solid #B08D57}
-.tpl-elegant .pbiz{color:#1E3A5F;font-size:1.2rem}
-.tpl-elegant .pword{color:#1E3A5F;font-weight:700}
-.tpl-elegant .pcl .nm{color:#1E3A5F}
-.tpl-elegant table.pt thead tr{border-bottom:2px solid #1E3A5F}
-.tpl-elegant table.pt th{color:#1E3A5F}
-.tpl-elegant .pgrand{border-top:2px solid #1E3A5F;color:#1E3A5F}
+.tpl-elegant .pbiz{color:var(--accent,#1E3A5F);font-size:1.2rem}
+.tpl-elegant .pword{color:var(--accent,#1E3A5F);font-weight:700}
+.tpl-elegant .pcl .nm{color:var(--accent,#1E3A5F)}
+.tpl-elegant table.pt thead tr{border-bottom:2px solid var(--accent,#1E3A5F)}
+.tpl-elegant table.pt th{color:var(--accent,#1E3A5F)}
+.tpl-elegant .pgrand{border-top:2px solid var(--accent,#1E3A5F);color:var(--accent,#1E3A5F)}
 .tpl-elegant .pgrand span:last-child{color:#B08D57}
 .tpl-elegant .pfooter{color:#B08D57}
 .free-watermark{display:block;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-35deg);font-size:2.8rem;font-weight:800;color:rgba(0,0,0,0.06);white-space:nowrap;pointer-events:none;z-index:9999;letter-spacing:.1em;font-family:'Plus Jakarta Sans',sans-serif}
@@ -632,6 +645,7 @@ table.pt tr:last-child td{border-bottom:none}
     <div class="block">
       <div class="bh"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:5px"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>Diseño de factura</div>
       <div id="tplPicker" class="tpl-picker"></div>
+      <div id="tplColorRow" class="tpl-color-row"></div>
       <p style="font-size:.7rem;color:var(--mu);margin-top:.5rem">Se aplica a todas tus facturas y cotizaciones.</p>
     </div>
 
@@ -920,6 +934,33 @@ const TEMPLATES = [
 function activeTemplate() {
   const t = B?.template || 'classic';
   return TEMPLATES.some(x => x.id === t) ? t : 'classic';
+}
+// Curated accent palette (Joist-style). All mid/dark so the white text on
+// Moderno's filled header band stays legible. tint = precomputed light wash
+// (12% accent over white) for Moderno's grand-total background — no color-mix()
+// so iOS 15.x WebViews (WebKit < 16.2) still render the tint.
+const TPL_COLORS = [
+  { hex:'#1A7A4A', tint:'#E8F5EE', name:'Verde' },
+  { hex:'#047857', tint:'#E1EFEB', name:'Esmeralda' },
+  { hex:'#0F766E', tint:'#E2EFEE', name:'Verde azulado' },
+  { hex:'#0E7490', tint:'#E2EEF2', name:'Cian' },
+  { hex:'#1D4ED8', tint:'#E4EAFA', name:'Azul' },
+  { hex:'#4338CA', tint:'#E8E7F9', name:'Índigo' },
+  { hex:'#1E3A5F', tint:'#E4E7EC', name:'Marino' },
+  { hex:'#7C3AED', tint:'#EFE7FD', name:'Púrpura' },
+  { hex:'#9D174D', tint:'#F3E3EA', name:'Magenta' },
+  { hex:'#BE123C', tint:'#F7E3E8', name:'Rosa' },
+  { hex:'#C0392B', tint:'#F7E7E6', name:'Rojo' },
+  { hex:'#C2410C', tint:'#F8E8E2', name:'Naranja' },
+  { hex:'#B45309', tint:'#F6EAE2', name:'Bronce' },
+  { hex:'#334155', tint:'#E7E8EB', name:'Pizarra' },
+];
+// Each Pro template's built-in accent (the "AUTO" / no-custom-color state).
+const TPL_DEFAULT_ACCENT = { modern:'#1A7A4A', bold:'#C8821A', minimal:'#1A1A1A', elegant:'#1E3A5F' };
+// Returns the chosen palette entry, or null when the user is on the template default.
+function activeTemplateColor() {
+  if (!B || !B.templateColor) return null;
+  return TPL_COLORS.find(c => c.hex === B.templateColor) || null;
 }
 let chartCustomFrom = '';
 let chartCustomTo = '';
@@ -1839,7 +1880,16 @@ function refreshPreview(inv) {
     ${buildSigSection(inv)}
     <div class="pfooter">Gracias por su preferencia.${B.phone?`<br>Contacto: ${B.phone}`:''}<br><span style="font-size:.62rem">Generado con Emiti · emiti.app</span></div>
   `;
-  document.getElementById('psheet').className = 'psheet tpl-' + (isPro ? activeTemplate() : 'classic');
+  const _psheet = document.getElementById('psheet');
+  _psheet.className = 'psheet tpl-' + (isPro ? activeTemplate() : 'classic');
+  const _accent = isPro ? activeTemplateColor() : null;
+  if (_accent) {
+    _psheet.style.setProperty('--accent', _accent.hex);
+    _psheet.style.setProperty('--accent-tint', _accent.tint);
+  } else {
+    _psheet.style.removeProperty('--accent');
+    _psheet.style.removeProperty('--accent-tint');
+  }
   if (!isPro) {
     const wm = document.getElementById('printWatermark');
     if (!wm) {
@@ -2211,6 +2261,36 @@ function renderTemplatePicker() {
         <div class="tpl-desc">${t.desc}</div>
       </div>`;
   }).join('');
+  renderColorSwatches(current, pro);
+}
+
+// Accent swatch row — only for the 4 Pro templates (hidden on Classic / free).
+function renderColorSwatches(current, pro) {
+  const row = document.getElementById('tplColorRow');
+  if (!row) return;
+  if (!pro || current === 'classic') { row.className = 'tpl-color-row'; row.innerHTML = ''; return; }
+  const sel = B?.templateColor || null;
+  const def = TPL_DEFAULT_ACCENT[current] || '#1A7A4A';
+  row.className = 'tpl-color-row show';
+  row.innerHTML = `
+    <div class="tpl-color-label">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 0 0 20 5 5 0 0 0 0-10 5 5 0 0 1 0-10z"/></svg>
+      Color de acento
+    </div>
+    <div class="tpl-swatches">
+      <div class="tpl-sw tpl-sw-def${!sel ? ' sel' : ''}" style="background:${def}" title="Color por defecto del diseño" onclick="selectTemplateColor('')">AUTO</div>
+      ${TPL_COLORS.map(c => `<div class="tpl-sw${c.hex === sel ? ' sel' : ''}" style="background:${c.hex}" title="${c.name}" onclick="selectTemplateColor('${c.hex}')"></div>`).join('')}
+    </div>`;
+}
+
+function selectTemplateColor(hex) {
+  if (!B) return;
+  if (!isProUser()) { document.getElementById('upgradeModal').classList.add('open'); return; }
+  B.templateColor = hex || null;
+  localStorage.setItem('fpr4_biz', JSON.stringify(B));
+  renderTemplatePicker();
+  if (CURRENT_INV) refreshPreview(CURRENT_INV);
+  toast(hex ? 'Color aplicado ✓' : 'Color por defecto ✓');
 }
 
 function selectTemplate(id) {
