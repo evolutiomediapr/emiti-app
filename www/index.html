@@ -901,7 +901,12 @@ let chartFilter = 'month';
 
 // Single source of truth for Pro status.
 function isProUser() {
-  return USER_PROFILE?.plan === 'pro' || localStorage.getItem('fpr4_pro') === 'true';
+  if (USER_PROFILE?.plan === 'pro') return true;
+  // iOS: el entitlement es exclusivamente server-validated (USER_PROFILE.plan).
+  // No confiamos en fpr4_pro (localStorage editable a mano). Web/Stripe sí lo
+  // mantiene como fallback.
+  if (window.Capacitor?.isNativePlatform()) return false;
+  return localStorage.getItem('fpr4_pro') === 'true';
 }
 
 // Invoice templates. 'classic' is free; the rest require Pro.
@@ -1186,6 +1191,40 @@ async function startCheckout() {
   }
 }
 
+// Activación AUTORITATIVA de Pro vía servidor. POST del JWS a /api/activate-iap,
+// que lo verifica con Apple y concede Pro con service_role (único rol que puede
+// tocar profiles.plan, por el trigger protect_profile_plan). El cliente NO
+// concede Pro por su cuenta: el estado refleja lo que diga el servidor.
+// Lanza si la activación falla → el llamador muestra el error y NO activa Pro.
+async function activateProFromIAP(jws) {
+  const { data: { session } } = await supa.auth.getSession();
+  if (!session || session.user.is_anonymous) {
+    throw new Error('Inicia sesión para activar Pro en tu cuenta.');
+  }
+  // En nativo (capacitor://localhost) un fetch relativo NO llega a Vercel: hay que
+  // apuntar al backend con URL absoluta. En web se queda relativo (mismo origen).
+  const apiBase = window.Capacitor?.isNativePlatform() ? 'https://emiti-app.vercel.app' : '';
+  const res = await fetch(`${apiBase}/api/activate-iap`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`
+    },
+    body: JSON.stringify({ jws })
+  });
+  let body = {};
+  try { body = await res.json(); } catch {}
+  if (!res.ok || !body.success) {
+    throw new Error(body.error
+      || `No se pudo activar Pro (HTTP ${res.status}). Tu compra en Apple quedó registrada; reintenta "Restaurar compra" o contacta soporte.`);
+  }
+  // Estado autoritativo del servidor: reflejo inmediato + refresco real del perfil.
+  USER_PROFILE = { ...USER_PROFILE, plan: body.plan || 'pro' };
+  try { await loadProfile(); } catch {}
+  updatePlanBar();
+  fillSettings();
+}
+
 // ── APPLE IAP (iOS nativo StoreKit 2) ──
 async function startIOSIAP() {
   const btn = document.querySelector('#upgradeModal .btn.bg');
@@ -1195,22 +1234,17 @@ async function startIOSIAP() {
     const { EmitIAP } = Capacitor.Plugins;
     if (!EmitIAP) throw new Error('Plugin IAP no disponible. Reinstala la app.');
     const result = await EmitIAP.purchasePro();
-    if (result.success) {
-      // Server-side Pro activation for iOS IAP is handled by a dedicated backend
-      // endpoint (with Apple receipt validation) — TODO: pending implementation.
-      // Direct client writes to profiles.plan are intentionally blocked by a DB
-      // trigger (only service_role may change the entitlement). For now we grant
-      // Pro locally on this device for the verified purchaser.
-      USER_PROFILE = { ...USER_PROFILE, plan: 'pro' };
-      localStorage.setItem('fpr4_pro', 'true');
-      document.getElementById('upgradeModal').classList.remove('open');
-      updatePlanBar();
-      fillSettings();
-      toast('¡Bienvenido a Pro! ✓');
-    }
+    if (!result.success) return;            // cancel/pending llegan por reject (catch)
+    if (!result.jws) throw new Error('La compra no devolvió comprobante (JWS) para validar.');
+
+    // Validación + concesión de Pro en el servidor. Si falla, lanza y NO activa Pro.
+    await activateProFromIAP(result.jws);
+
+    document.getElementById('upgradeModal').classList.remove('open');
+    toast('¡Bienvenido a Pro! ✓');
   } catch(e) {
     if (e.message && !e.message.includes('User cancelled')) {
-      toast('Error al procesar compra: ' + e.message);
+      toast('⚠️ ' + e.message);
     }
   } finally {
     btn.textContent = orig; btn.classList.remove('auth-loading');
@@ -1222,19 +1256,15 @@ async function restoreIOSPurchases() {
   try {
     const { EmitIAP } = Capacitor.Plugins;
     const result = await EmitIAP.restorePurchases();
-    if (result.restored) {
-      // See note in startIOSIAP: server-side activation is handled by the (pending)
-      // backend endpoint; profiles.plan is locked to service_role. Grant locally.
-      USER_PROFILE = { ...USER_PROFILE, plan: 'pro' };
-      localStorage.setItem('fpr4_pro', 'true');
-      updatePlanBar();
-      fillSettings();
-      toast('Compra restaurada ✓');
-    } else {
-      toast('No se encontraron compras anteriores');
-    }
+    if (!result.restored) { toast('No se encontraron compras anteriores'); return; }
+    if (!result.jws) throw new Error('No se pudo obtener el comprobante (JWS) de la compra restaurada.');
+
+    await activateProFromIAP(result.jws);   // valida en servidor; lanza si falla
+    toast('Compra restaurada ✓');
   } catch(e) {
-    toast('Error al restaurar: ' + e.message);
+    if (e.message && !e.message.includes('User cancelled')) {
+      toast('⚠️ ' + e.message);
+    }
   }
 }
 
