@@ -1038,7 +1038,26 @@ async function authSignup() {
   const { data, error } = await supa.auth.signUp({ email, password: pass });
   btn.textContent = 'Crear cuenta gratis'; btn.classList.remove('auth-loading');
   if (error) { showAuthErr(error.message); return; }
-  CURRENT_USER = data.user;
+
+  // Con confirmación de email activada, signUp() NO devuelve sesión: data.session
+  // es null y la sesión activa de GoTrue sigue siendo la anónima del arranque.
+  // NO setear CURRENT_USER ni abrir la app (sería un estado "logueado" falso sobre
+  // sesión anónima → los INSERT a invoices fallan con RLS). Pedimos confirmar email.
+  if (!data.session) {
+    switchAuthTab('login');
+    document.getElementById('auth-email').value = email;
+    const ctx = document.getElementById('auth-context');
+    const txt = document.getElementById('auth-context-text');
+    if (ctx && txt) {
+      txt.innerHTML = `Te enviamos un correo de confirmación a <b>${email}</b>. ` +
+        `Ábrelo, haz clic en el enlace y luego <b>inicia sesión aquí</b> para continuar.`;
+      ctx.classList.add('show');
+    }
+    return;
+  }
+
+  // Confirmación desactivada: signUp devolvió una sesión real → abrir la app.
+  CURRENT_USER = data.session.user;
   USER_PROFILE = { plan: 'free', invoices_this_month: 0, quotes_this_month: 0 };
   hideAuthModal();
   syncAllInvToSupabase().catch(e => console.warn('[Signup] syncAllInvToSupabase error:', e));
@@ -1871,6 +1890,15 @@ function updateTopbarAuth() {
 
 async function syncInvToSupabase(inv) {
   if (!supa) throw new Error('Supabase no disponible');
+  // Guard autoritativo: validar la sesión REAL de GoTrue, no el CURRENT_USER en
+  // memoria (puede estar desincronizado — p.ej. tras signup con confirmación
+  // pendiente, donde la sesión activa sigue siendo anónima). Sin esto el INSERT
+  // llega a PostgREST con JWT anónimo y RLS lo rechaza con el mensaje genérico
+  // "new row violates row-level security policy".
+  const { data: { session } } = await supa.auth.getSession();
+  if (!session || session.user.is_anonymous) {
+    throw new Error('auth_required: sesión no autenticada');
+  }
   const timeout = new Promise((_, r) => setTimeout(() => r(new Error('sync timeout')), 10000));
   const payload = {
     slug: inv.slug || inv.num,
@@ -2384,7 +2412,11 @@ function getShareLink(inv) {
 // - #4: si la sesión es anónima (RLS bloquea el insert), fuerza login con mensaje claro.
 // - #3: espera el guardado; si falla, muestra un error real en vez de compartir un enlace roto.
 async function ensureShareable(inv) {
-  if (!supa || !CURRENT_USER || CURRENT_USER.is_anonymous) {
+  // Validar la sesión REAL de GoTrue (no CURRENT_USER, que puede estar
+  // desincronizado): RLS evalúa is_anonymous del JWT activo, así que esa es la
+  // fuente de verdad para decidir si podemos insertar/compartir.
+  const { data: { session } } = supa ? await supa.auth.getSession() : { data: { session: null } };
+  if (!session || session.user.is_anonymous) {
     toast('🔒 Inicia sesión para compartir el enlace');
     showAuthModal('Para compartir un enlace que tu cliente pueda abrir, necesitas una cuenta. <b>Inicia sesión o regístrate gratis</b> — tus documentos se guardan en la nube y el enlace funcionará al instante.');
     return false;
@@ -2395,6 +2427,13 @@ async function ensureShareable(inv) {
     return true;
   } catch (e) {
     console.error('[share] guardado falló:', e);
+    // Usuario free que alcanzó el límite mensual: el INSERT lo rechaza el trigger
+    // enforce_invoice_limit con 'monthly_limit_reached'. Mostramos el modal de
+    // upgrade (igual que saveDoc) en vez de un toast genérico de error.
+    if (/monthly_limit_reached/i.test(e.message || '')) {
+      showUpgradeModal(inv.type);
+      return false;
+    }
     toast('⚠️ No se pudo guardar el documento para compartir: ' + (e.message || e));
     return false;
   }

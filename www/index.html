@@ -251,6 +251,67 @@ table.pt tr:last-child td{border-bottom:none}
 .ppay-btns{display:flex;gap:.5rem;justify-content:center;flex-wrap:wrap}
 .ppay-btn{padding:.45rem .8rem;border-radius:6px;font-size:.75rem;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:.3rem}
 .pfooter{text-align:center;font-size:.7rem;color:#B0BDB6;border-top:1px solid #E2EAE5;padding-top:.8rem;line-height:1.6}
+/* ── TEMPLATE PICKER (settings) ── */
+.tpl-picker{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
+.tpl-card{position:relative;border:1.5px solid var(--bd);border-radius:10px;padding:.55rem;cursor:pointer;background:#fff;transition:border-color .15s,box-shadow .15s}
+.tpl-card.sel{border-color:var(--green);box-shadow:0 0 0 2px rgba(26,122,74,.15)}
+.tpl-card.locked{opacity:.9}
+.tpl-mini{height:54px;border-radius:6px;overflow:hidden;border:1px solid var(--bd2);margin-bottom:.4rem;background:#fff;display:flex;flex-direction:column}
+.tpl-mini-band{height:16px;flex-shrink:0}
+.tpl-mini-body{flex:1;padding:4px 6px;display:flex;flex-direction:column;gap:3px}
+.tpl-mini-line{height:3px;border-radius:2px;background:#E2EAE5}
+.tpl-mini-line.s{width:55%}
+.tpl-mini-total{height:5px;width:35%;align-self:flex-end;border-radius:2px;margin-top:auto}
+.tpl-name{font-size:.78rem;font-weight:700;color:var(--ink);display:flex;align-items:center;gap:.35rem;flex-wrap:wrap}
+.tpl-desc{font-size:.62rem;color:var(--mu);margin-top:.12rem;line-height:1.3}
+.tpl-pro-badge{font-size:.54rem;font-weight:800;color:#fff;background:var(--green);padding:.08rem .3rem;border-radius:4px;letter-spacing:.04em}
+.tpl-check{position:absolute;top:.5rem;right:.5rem;width:18px;height:18px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.7rem}
+.tpl-lock{position:absolute;top:.5rem;right:.5rem;color:var(--mu)}
+/* ── INVOICE TEMPLATES (Pro) ── classic = base styles above ── */
+/* Moderno: green header band */
+.tpl-modern .psh{background:#1A7A4A;margin:-1.8rem -1.6rem 1.3rem;padding:1.4rem 1.6rem;border-bottom:none;border-radius:16px 16px 0 0;color:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.tpl-modern .pbiz{color:#fff}
+.tpl-modern .pinfo{color:rgba(255,255,255,.85)}
+.tpl-modern .pword{color:#fff}
+.tpl-modern .pnum,.tpl-modern .pdate{color:rgba(255,255,255,.85)}
+.tpl-modern table.pt thead tr{border-bottom-color:#1A7A4A}
+.tpl-modern table.pt th{color:#1A7A4A}
+.tpl-modern .pgrand{background:#E8F5EE;border-top:none;border-radius:10px;padding:.6rem 1rem;color:#1A7A4A;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.tpl-modern .pgrand span:last-child{color:#1A7A4A}
+/* Bold: charcoal header, amber accent */
+.tpl-bold .psh{background:#111915;margin:-1.8rem -1.6rem 1.3rem;padding:1.4rem 1.6rem;border-bottom:none;border-radius:16px 16px 0 0;color:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.tpl-bold .pbiz{color:#fff;font-size:1.15rem}
+.tpl-bold .pinfo{color:rgba(255,255,255,.8)}
+.tpl-bold .pword{color:#C8821A;font-size:1.5rem;font-weight:800;text-transform:uppercase}
+.tpl-bold .pnum,.tpl-bold .pdate{color:rgba(255,255,255,.8)}
+.tpl-bold table.pt thead tr{border-bottom:2px solid #111915}
+.tpl-bold table.pt th{color:#111915}
+.tpl-bold .pgrand{border-top:3px solid #111915;color:#111915;font-size:1.3rem}
+.tpl-bold .pgrand span:last-child{color:#C8821A}
+/* Minimal: monochrome, airy */
+.tpl-minimal .psh{border-bottom:1px solid #ECECEC}
+.tpl-minimal .pbiz{font-weight:500;color:#1A1A1A}
+.tpl-minimal .pinfo{color:#9AA39E}
+.tpl-minimal .pword{color:#1A1A1A;font-weight:500;letter-spacing:.05em;text-transform:uppercase;font-size:1rem}
+.tpl-minimal .pnum,.tpl-minimal .pdate{color:#9AA39E}
+.tpl-minimal .pcl .lbl{color:#9AA39E;letter-spacing:.12em}
+.tpl-minimal table.pt thead tr{border-bottom:1px solid #ECECEC}
+.tpl-minimal table.pt th{color:#9AA39E;letter-spacing:.1em;font-weight:500}
+.tpl-minimal table.pt td{border-bottom-color:#F3F3F3}
+.tpl-minimal .pgrand{border-top:1px solid #1A1A1A;color:#1A1A1A;font-weight:500}
+.tpl-minimal .pgrand span:last-child{color:#1A1A1A}
+.tpl-minimal .pnotes{background:#FAFAFA;color:#9AA39E}
+/* Elegante: system serif, navy + gold */
+.tpl-elegant .pbiz,.tpl-elegant .pword{font-family:Georgia,'Times New Roman',serif}
+.tpl-elegant .psh{border-bottom:2px solid #B08D57}
+.tpl-elegant .pbiz{color:#1E3A5F;font-size:1.2rem}
+.tpl-elegant .pword{color:#1E3A5F;font-weight:700}
+.tpl-elegant .pcl .nm{color:#1E3A5F}
+.tpl-elegant table.pt thead tr{border-bottom:2px solid #1E3A5F}
+.tpl-elegant table.pt th{color:#1E3A5F}
+.tpl-elegant .pgrand{border-top:2px solid #1E3A5F;color:#1E3A5F}
+.tpl-elegant .pgrand span:last-child{color:#B08D57}
+.tpl-elegant .pfooter{color:#B08D57}
 .free-watermark{display:block;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-35deg);font-size:2.8rem;font-weight:800;color:rgba(0,0,0,0.06);white-space:nowrap;pointer-events:none;z-index:9999;letter-spacing:.1em;font-family:'Plus Jakarta Sans',sans-serif}
 .pact{max-width:500px;width:100%;margin:.8rem auto 1.5rem;display:flex;flex-direction:column;gap:.5rem}
 .pact-row{display:flex;gap:.5rem;width:100%}
@@ -308,6 +369,9 @@ table.pt tr:last-child td{border-bottom:none}
   table.pt td,table.pt th{padding:.22rem .3rem!important;font-size:10px!important}
   .ptots{margin-bottom:.5rem!important}
   .pgrand{font-size:.9rem!important;padding-top:.35rem!important}
+  /* Align colored header bands with the reduced print padding (.8rem) */
+  .tpl-modern .psh,.tpl-bold .psh{margin:-.8rem -.8rem .7rem!important;padding:.7rem .8rem!important;border-radius:0!important}
+  .tpl-modern .pgrand{padding:.4rem .6rem!important}
   .pnotes{padding:.35rem .45rem!important;margin-bottom:.5rem!important;font-size:10px!important}
   .psig-section{padding-top:.4rem!important;margin-bottom:.4rem!important}
   .psig-block img{max-height:28px!important}
@@ -484,6 +548,12 @@ table.pt tr:last-child td{border-bottom:none}
       <div class="bh">Cliente</div>
       <div class="f"><label>Nombre *</label><input type="text" id="f-cli" placeholder="Juan Martínez"></div>
       <div class="f"><label>Teléfono</label><input type="tel" id="f-tel" placeholder="787-000-0000"></div>
+      <div class="f" style="margin-top:.1rem">
+        <label style="display:flex;align-items:flex-start;gap:.55rem;cursor:pointer;text-transform:none;font-size:.78rem;font-weight:400;color:var(--ink);letter-spacing:0;line-height:1.35">
+          <input type="checkbox" id="f-sms-consent" style="width:18px;height:18px;flex-shrink:0;margin-top:1px;accent-color:var(--green)">
+          <span>Mi cliente autorizó recibir notificaciones por SMS sobre sus facturas. Podrá cancelar respondiendo STOP.</span>
+        </label>
+      </div>
       <div class="f"><label>Email</label><input type="email" id="f-email" placeholder="cliente@email.com"></div>
       <div class="f"><label>Dirección / Descripción del trabajo</label><textarea id="f-adr" placeholder="Calle Sol 45, Bayamón — Reparación de plomería"></textarea></div>
     </div>
@@ -556,6 +626,13 @@ table.pt tr:last-child td{border-bottom:none}
       <div class="bh">Logo</div>
       <div class="lbox" id="set-lbox" onclick="openLogoPicker()"><div class="lph" id="set-lph"><span class="ei"><svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block;margin:0 auto 4px"><rect x="1" y="1" width="26" height="26" rx="7" stroke="#1A7A4A" stroke-width="1.8"/><path d="M14 19V10M14 10L10.5 13.5M14 10L17.5 13.5" stroke="#1A7A4A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><line x1="9" y1="21" x2="19" y2="21" stroke="#1A7A4A" stroke-width="1.8" stroke-linecap="round"/></svg></span>Toca para cambiar tu logo</div><img class="limg" id="set-limg"></div>
       <p style="font-size:.7rem;color:var(--mu);margin-top:.5rem;text-align:center">Aparece en todos tus documentos</p>
+    </div>
+
+    <!-- DISEÑO DE FACTURA -->
+    <div class="block">
+      <div class="bh"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:5px"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>Diseño de factura</div>
+      <div id="tplPicker" class="tpl-picker"></div>
+      <p style="font-size:.7rem;color:var(--mu);margin-top:.5rem">Se aplica a todas tus facturas y cotizaciones.</p>
     </div>
 
     <!-- FIRMA GUARDADA -->
@@ -821,6 +898,24 @@ let LN = 0;
 let DOC_TYPE = 'invoice';
 let CURRENT_INV = null;
 let chartFilter = 'month';
+
+// Single source of truth for Pro status.
+function isProUser() {
+  return USER_PROFILE?.plan === 'pro' || localStorage.getItem('fpr4_pro') === 'true';
+}
+
+// Invoice templates. 'classic' is free; the rest require Pro.
+const TEMPLATES = [
+  { id: 'classic', name: 'Classic', pro: false, desc: 'Limpio y ligero, acento verde' },
+  { id: 'modern',  name: 'Moderno', pro: true,  desc: 'Banda verde, estilo contemporáneo' },
+  { id: 'bold',    name: 'Bold',    pro: true,  desc: 'Encabezado oscuro, acento ámbar' },
+  { id: 'minimal', name: 'Minimal', pro: true,  desc: 'Monocromo, máximo espacio en blanco' },
+  { id: 'elegant', name: 'Elegante',pro: true,  desc: 'Serif refinado, marino y oro' },
+];
+function activeTemplate() {
+  const t = B?.template || 'classic';
+  return TEMPLATES.some(x => x.id === t) ? t : 'classic';
+}
 let chartCustomFrom = '';
 let chartCustomTo = '';
 let sigCanvases = {};
@@ -943,7 +1038,26 @@ async function authSignup() {
   const { data, error } = await supa.auth.signUp({ email, password: pass });
   btn.textContent = 'Crear cuenta gratis'; btn.classList.remove('auth-loading');
   if (error) { showAuthErr(error.message); return; }
-  CURRENT_USER = data.user;
+
+  // Con confirmación de email activada, signUp() NO devuelve sesión: data.session
+  // es null y la sesión activa de GoTrue sigue siendo la anónima del arranque.
+  // NO setear CURRENT_USER ni abrir la app (sería un estado "logueado" falso sobre
+  // sesión anónima → los INSERT a invoices fallan con RLS). Pedimos confirmar email.
+  if (!data.session) {
+    switchAuthTab('login');
+    document.getElementById('auth-email').value = email;
+    const ctx = document.getElementById('auth-context');
+    const txt = document.getElementById('auth-context-text');
+    if (ctx && txt) {
+      txt.innerHTML = `Te enviamos un correo de confirmación a <b>${email}</b>. ` +
+        `Ábrelo, haz clic en el enlace y luego <b>inicia sesión aquí</b> para continuar.`;
+      ctx.classList.add('show');
+    }
+    return;
+  }
+
+  // Confirmación desactivada: signUp devolvió una sesión real → abrir la app.
+  CURRENT_USER = data.session.user;
   USER_PROFILE = { plan: 'free', invoices_this_month: 0, quotes_this_month: 0 };
   hideAuthModal();
   syncAllInvToSupabase().catch(e => console.warn('[Signup] syncAllInvToSupabase error:', e));
@@ -991,7 +1105,7 @@ function updatePlanBar() {
   const bar = document.getElementById('planBar');
   if (!bar || !CURRENT_USER || CURRENT_USER.is_anonymous) return;
   bar.style.display = 'flex';
-  const isPro = USER_PROFILE?.plan === 'pro' || USER_PROFILE?.is_pro === true || localStorage.getItem('fpr4_pro') === 'true';
+  const isPro = isProUser();
   bar.className = 'plan-bar' + (isPro ? ' pro-bar' : '');
   if (isPro) {
     bar.innerHTML = `
@@ -1028,31 +1142,12 @@ function getUsage() {
   return { month: currentMonth, invoices: 0, estimates: 0 };
 }
 
-async function checkLimit(docType) {
-  if (!supa || !CURRENT_USER || CURRENT_USER.is_anonymous) {
-    const u = getUsage();
-    const key = docType === 'invoice' ? 'invoices' : 'estimates';
-    console.log('Usage check:', u, 'key:', key, 'count:', u[key]);
-    if (u[key] >= FREE_LIMIT) { showUpgradeModal(docType); return false; }
-    return true;
-  }
-
-  console.log('[checkLimit] llamando RPC para user:', CURRENT_USER.id, 'type:', docType);
-  const { data, error } = await supa.rpc('check_limit_and_increment', {
-    p_user_id: CURRENT_USER.id,
-    p_type: docType
-  });
-  console.log('[checkLimit] RPC resultado:', { data, error: error?.message });
-  if (error) { console.error('[checkLimit] error RPC:', error); return true; } // allow on error
-  if (!data || !data.allowed) {
-    console.log('[checkLimit] no permitido, razón:', data?.reason);
-    showUpgradeModal(docType); return false;
-  }
-  if (docType === 'invoice') USER_PROFILE.invoices_this_month = (USER_PROFILE.invoices_this_month || 0) + 1;
-  else USER_PROFILE.quotes_this_month = (USER_PROFILE.quotes_this_month || 0) + 1;
-  updatePlanBar();
-  return true;
-}
+// NOTE: el límite del plan free se enforca server-side via el trigger
+// enforce_invoice_limit (BEFORE INSERT en invoices), que delega en el RPC
+// check_limit_and_increment. El bloqueo real ocurre en saveDoc() al sincronizar
+// (cloud-first). getUsage()/fpr4_usage queda solo como fallback anónimo/offline
+// y para UI. La antigua checkLimit() fue removida (nunca se llamaba y pasaba
+// 'estimate' en vez de 'quote', que el RPC rechaza).
 
 function showUpgradeModal(docType) {
   const label = docType === 'invoice' ? 'facturas' : 'cotizaciones';
@@ -1101,9 +1196,12 @@ async function startIOSIAP() {
     if (!EmitIAP) throw new Error('Plugin IAP no disponible. Reinstala la app.');
     const result = await EmitIAP.purchasePro();
     if (result.success) {
-      const { error: upErr } = await supa.from('profiles').update({ plan: 'pro', is_pro: true }).eq('id', CURRENT_USER.id);
-      if (upErr) { console.error('[IAP] Error actualizando perfil a Pro:', upErr); throw new Error('Compra realizada pero no se pudo activar Pro: ' + upErr.message); }
-      USER_PROFILE = { ...USER_PROFILE, plan: 'pro', is_pro: true };
+      // Server-side Pro activation for iOS IAP is handled by a dedicated backend
+      // endpoint (with Apple receipt validation) — TODO: pending implementation.
+      // Direct client writes to profiles.plan are intentionally blocked by a DB
+      // trigger (only service_role may change the entitlement). For now we grant
+      // Pro locally on this device for the verified purchaser.
+      USER_PROFILE = { ...USER_PROFILE, plan: 'pro' };
       localStorage.setItem('fpr4_pro', 'true');
       document.getElementById('upgradeModal').classList.remove('open');
       updatePlanBar();
@@ -1125,9 +1223,9 @@ async function restoreIOSPurchases() {
     const { EmitIAP } = Capacitor.Plugins;
     const result = await EmitIAP.restorePurchases();
     if (result.restored) {
-      const { error: upErr } = await supa.from('profiles').update({ plan: 'pro', is_pro: true }).eq('id', CURRENT_USER.id);
-      if (upErr) { console.error('[IAP] Error actualizando perfil tras restaurar:', upErr); throw new Error('No se pudo activar Pro: ' + upErr.message); }
-      USER_PROFILE = { ...USER_PROFILE, plan: 'pro', is_pro: true };
+      // See note in startIOSIAP: server-side activation is handled by the (pending)
+      // backend endpoint; profiles.plan is locked to service_role. Grant locally.
+      USER_PROFILE = { ...USER_PROFILE, plan: 'pro' };
       localStorage.setItem('fpr4_pro', 'true');
       updatePlanBar();
       fillSettings();
@@ -1473,6 +1571,8 @@ function getForm() {
     type:DOC_TYPE,
     client:document.getElementById('f-cli').value.trim(),
     phone:document.getElementById('f-tel').value.trim(),
+    smsConsent:document.getElementById('f-sms-consent').checked,
+    smsConsentDate:document.getElementById('f-sms-consent').checked?new Date().toISOString():'',
     email:document.getElementById('f-email').value.trim(),
     addr:document.getElementById('f-adr').value.trim(),
     date:document.getElementById('f-date').value,
@@ -1501,6 +1601,7 @@ async function saveDoc() {
         d.status = INV[idx].status; // Keep original status
         d.clientSig = INV[idx].clientSig; // Keep signature
         d.clientSigDate = INV[idx].clientSigDate;
+        if (d.smsConsent && INV[idx].smsConsentDate) d.smsConsentDate = INV[idx].smsConsentDate; // Keep original consent date
         INV[idx] = d;
       }
       window._editingId = null;
@@ -1513,29 +1614,49 @@ async function saveDoc() {
         console.warn('[saveDoc] update sync error:', e);
         if (CURRENT_USER && !CURRENT_USER.is_anonymous) toast('⚠️ Cambios guardados localmente, pero no se sincronizaron a la nube');
       });
+    } else if (supa && CURRENT_USER && !CURRENT_USER.is_anonymous) {
+      // Nuevo documento (sesión real) — el límite del plan free se enforca SERVER-SIDE.
+      // Cloud-first: el insert pasa por el trigger enforce_invoice_limit, que rechaza
+      // a usuarios free por encima del límite. No se puede burlar borrando localStorage,
+      // ni insertando directo (el trigger corre en todo INSERT). Solo creamos el doc
+      // localmente si la nube lo acepta (o si el error es ajeno al límite).
+      let synced = false;
+      try {
+        await syncInvToSupabase(d);
+        synced = true;
+      } catch (e) {
+        if (/monthly_limit_reached/i.test(e.message || '')) {
+          showUpgradeModal(d.type);
+          return;
+        }
+        // Error no relacionado al límite (ej. offline): conservamos resiliencia
+        // local-first; el sync se reintenta al compartir (ensureShareable).
+        console.warn('[saveDoc] sync error (no-límite), guardando local:', e.message);
+      }
+      INV.unshift(d); save(); checkReminders();
+      if (synced) {
+        // El contador autoritativo vive en profiles (server). Reflejo optimista en UI.
+        if (d.type === 'invoice') USER_PROFILE.invoices_this_month = (USER_PROFILE.invoices_this_month || 0) + 1;
+        else USER_PROFILE.quotes_this_month = (USER_PROFILE.quotes_this_month || 0) + 1;
+        updatePlanBar();
+      }
+      toast(d.type==='invoice'?'Factura guardada ✓':'Cotización guardada ✓');
+      go('facturas');
     } else {
-      // Nuevo documento — verificar límite
-      const isPro = USER_PROFILE?.plan === 'pro' || USER_PROFILE?.is_pro === true || localStorage.getItem('fpr4_pro') === 'true';
+      // Sin sesión real (anónimo/offline): no hay enforcement server-side posible;
+      // el contador local es la única defensa disponible (best-effort).
+      const isPro = isProUser();
       const u = getUsage();
       const key = d.type === 'invoice' ? 'invoices' : 'estimates';
-      console.log('Usage check:', u, 'key:', key, 'count:', u[key]);
       if (!isPro && u[key] >= 3) {
         document.getElementById('upgradeModal').classList.add('open');
         return;
       }
-      // guardar primero, luego incrementar
       INV.unshift(d); save(); checkReminders();
       u[key]++;
       localStorage.setItem('fpr4_usage', JSON.stringify(u));
       toast(d.type==='invoice'?'Factura guardada ✓':'Cotización guardada ✓');
       go('facturas');
-      // Sync a Supabase en background — persiste supaId cuando completa. El guardado
-      // se vuelve a garantizar al compartir (ensureShareable). Avisamos si falla con sesión real.
-      syncInvToSupabase(d).then(() => { save(); console.log('[saveDoc] sync OK, supaId:', d.supaId); })
-                          .catch(e => {
-                            console.warn('[saveDoc] insert sync error:', e);
-                            if (CURRENT_USER && !CURRENT_USER.is_anonymous) toast('⚠️ Guardado local, pero no se sincronizó a la nube');
-                          });
     }
   } catch (e) {
     console.error('[saveDoc] ERROR:', e);
@@ -1552,6 +1673,7 @@ function prevCur() {
 function resetForm() {
   window._editingId = null;
   ['f-cli','f-tel','f-email','f-adr','f-not'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  document.getElementById('f-sms-consent').checked=false;
   document.getElementById('f-dsc').value='0'; document.getElementById('f-ivu').value='11.5';
   document.getElementById('liItems').innerHTML=''; LN=0;
   document.getElementById('f-date').value=new Date().toISOString().split('T')[0];
@@ -1641,7 +1763,7 @@ function showPrev(inv) {
 }
 
 function refreshPreview(inv) {
-  const isPro = USER_PROFILE?.plan === 'pro' || USER_PROFILE?.is_pro === true || localStorage.getItem('fpr4_pro') === 'true';
+  const isPro = isProUser();
   const isEst = inv.type === 'estimate';
   document.getElementById('psheet').innerHTML=`
     <div class="psh">
@@ -1687,6 +1809,7 @@ function refreshPreview(inv) {
     ${buildSigSection(inv)}
     <div class="pfooter">Gracias por su preferencia.${B.phone?`<br>Contacto: ${B.phone}`:''}<br><span style="font-size:.62rem">Generado con Emiti · emiti.app</span></div>
   `;
+  document.getElementById('psheet').className = 'psheet tpl-' + (isPro ? activeTemplate() : 'classic');
   if (!isPro) {
     const wm = document.getElementById('printWatermark');
     if (!wm) {
@@ -1767,6 +1890,15 @@ function updateTopbarAuth() {
 
 async function syncInvToSupabase(inv) {
   if (!supa) throw new Error('Supabase no disponible');
+  // Guard autoritativo: validar la sesión REAL de GoTrue, no el CURRENT_USER en
+  // memoria (puede estar desincronizado — p.ej. tras signup con confirmación
+  // pendiente, donde la sesión activa sigue siendo anónima). Sin esto el INSERT
+  // llega a PostgREST con JWT anónimo y RLS lo rechaza con el mensaje genérico
+  // "new row violates row-level security policy".
+  const { data: { session } } = await supa.auth.getSession();
+  if (!session || session.user.is_anonymous) {
+    throw new Error('auth_required: sesión no autenticada');
+  }
   const timeout = new Promise((_, r) => setTimeout(() => r(new Error('sync timeout')), 10000));
   const payload = {
     slug: inv.slug || inv.num,
@@ -2007,8 +2139,62 @@ function fillSettings() {
   ['biz','own','tel','twn'].forEach(k=>{ const el=document.getElementById('sv-'+k); if(el) el.textContent=B[{biz:'biz',own:'owner',tel:'phone',twn:'town'}[k]]||'—'; });
   document.getElementById('sv-cnt').textContent=INV.length;
   const planEl=document.getElementById('sv-plan');
-  if(planEl){ const isPro = USER_PROFILE?.plan === 'pro' || USER_PROFILE?.is_pro === true || localStorage.getItem('fpr4_pro') === 'true'; planEl.textContent = isPro ? 'Pro' : 'Gratuito'; }
+  if(planEl){ planEl.textContent = isProUser() ? 'Pro' : 'Gratuito'; }
   loadPayments();
+  renderTemplatePicker();
+}
+
+// Mini-preview swatch styling per template (mirrors the real CSS accents).
+const TPL_MINI = {
+  classic: { band: 'transparent', bandBorder: '1px solid #E2EAE5', accent: '#1A7A4A', total: '#1A7A4A' },
+  modern:  { band: '#1A7A4A', bandBorder: 'none', accent: '#1A7A4A', total: '#1A7A4A' },
+  bold:    { band: '#111915', bandBorder: 'none', accent: '#111915', total: '#C8821A' },
+  minimal: { band: '#fff',    bandBorder: '1px solid #ECECEC', accent: '#9AA39E', total: '#1A1A1A' },
+  elegant: { band: '#fff',    bandBorder: '2px solid #B08D57', accent: '#1E3A5F', total: '#B08D57' },
+};
+
+function renderTemplatePicker() {
+  const host = document.getElementById('tplPicker');
+  if (!host) return;
+  const pro = isProUser();
+  const current = pro ? activeTemplate() : 'classic';
+  host.innerHTML = TEMPLATES.map(t => {
+    const m = TPL_MINI[t.id];
+    const sel = t.id === current;
+    const locked = t.pro && !pro;
+    const corner = sel
+      ? '<div class="tpl-check">✓</div>'
+      : (locked ? '<div class="tpl-lock"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></div>' : '');
+    return `
+      <div class="tpl-card${sel ? ' sel' : ''}${locked ? ' locked' : ''}" onclick="selectTemplate('${t.id}')">
+        ${corner}
+        <div class="tpl-mini">
+          <div class="tpl-mini-band" style="background:${m.band};border-bottom:${m.bandBorder}"></div>
+          <div class="tpl-mini-body">
+            <div class="tpl-mini-line s" style="background:${m.accent}"></div>
+            <div class="tpl-mini-line"></div>
+            <div class="tpl-mini-line s"></div>
+            <div class="tpl-mini-total" style="background:${m.total}"></div>
+          </div>
+        </div>
+        <div class="tpl-name">${t.name}${t.pro ? '<span class="tpl-pro-badge">PRO</span>' : ''}</div>
+        <div class="tpl-desc">${t.desc}</div>
+      </div>`;
+  }).join('');
+}
+
+function selectTemplate(id) {
+  const tpl = TEMPLATES.find(t => t.id === id);
+  if (!tpl || !B) return;
+  if (tpl.pro && !isProUser()) {
+    document.getElementById('upgradeModal').classList.add('open');
+    return;
+  }
+  B.template = id;
+  localStorage.setItem('fpr4_biz', JSON.stringify(B));
+  renderTemplatePicker();
+  if (CURRENT_INV) refreshPreview(CURRENT_INV);
+  toast('Diseño aplicado: ' + tpl.name + ' ✓');
 }
 
 function ed(key,label){ const v=prompt(label+':',B[key]||''); if(v!==null){B[key]=v.trim();localStorage.setItem('fpr4_biz',JSON.stringify(B));fillSettings();setGreet();} }
@@ -2176,6 +2362,7 @@ function editInv() {
     // Fill client fields
     document.getElementById('f-cli').value = inv.client || '';
     document.getElementById('f-tel').value = inv.phone || '';
+    document.getElementById('f-sms-consent').checked = !!inv.smsConsent;
     document.getElementById('f-email').value = inv.email || '';
     document.getElementById('f-adr').value = inv.addr || '';
     document.getElementById('f-date').value = inv.date || '';
@@ -2225,7 +2412,11 @@ function getShareLink(inv) {
 // - #4: si la sesión es anónima (RLS bloquea el insert), fuerza login con mensaje claro.
 // - #3: espera el guardado; si falla, muestra un error real en vez de compartir un enlace roto.
 async function ensureShareable(inv) {
-  if (!supa || !CURRENT_USER || CURRENT_USER.is_anonymous) {
+  // Validar la sesión REAL de GoTrue (no CURRENT_USER, que puede estar
+  // desincronizado): RLS evalúa is_anonymous del JWT activo, así que esa es la
+  // fuente de verdad para decidir si podemos insertar/compartir.
+  const { data: { session } } = supa ? await supa.auth.getSession() : { data: { session: null } };
+  if (!session || session.user.is_anonymous) {
     toast('🔒 Inicia sesión para compartir el enlace');
     showAuthModal('Para compartir un enlace que tu cliente pueda abrir, necesitas una cuenta. <b>Inicia sesión o regístrate gratis</b> — tus documentos se guardan en la nube y el enlace funcionará al instante.');
     return false;
@@ -2236,6 +2427,13 @@ async function ensureShareable(inv) {
     return true;
   } catch (e) {
     console.error('[share] guardado falló:', e);
+    // Usuario free que alcanzó el límite mensual: el INSERT lo rechaza el trigger
+    // enforce_invoice_limit con 'monthly_limit_reached'. Mostramos el modal de
+    // upgrade (igual que saveDoc) en vez de un toast genérico de error.
+    if (/monthly_limit_reached/i.test(e.message || '')) {
+      showUpgradeModal(inv.type);
+      return false;
+    }
     toast('⚠️ No se pudo guardar el documento para compartir: ' + (e.message || e));
     return false;
   }
