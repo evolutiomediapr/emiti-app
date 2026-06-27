@@ -130,6 +130,14 @@ textarea{resize:vertical;min-height:66px;line-height:1.5}
 .limk-locked{background:none;border:none;cursor:pointer;display:flex;align-items:center;gap:.35rem;font-size:.72rem;color:var(--mu);padding:0;font-family:inherit}
 /* breakdown sub-line in the preview */
 .pmk{font-size:.62rem;color:var(--mu);font-weight:400;margin-top:.15rem}
+/* Reportes — barra de filtros Pro */
+.hist-fh{display:flex;justify-content:space-between;align-items:center;margin-bottom:.7rem}
+.hist-grid{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.5rem}
+.hist-range{display:grid;grid-template-columns:1fr 1fr auto;gap:.5rem;align-items:end}
+.hf-l{display:flex;flex-direction:column;gap:.25rem;font-size:.7rem;font-weight:700;color:var(--mu)}
+.hf-l select,.hf-l input{padding:.45rem .5rem;font-size:.82rem;background:#fff;border:1px solid var(--bd2);border-radius:var(--rs);font-family:inherit;color:var(--ink)}
+.hist-locked{cursor:pointer}
+.hist-locked-row{display:flex;justify-content:space-between;align-items:center;font-size:.84rem;font-weight:700;color:var(--ink)}
 .del{width:26px;height:26px;border-radius:50%;background:#fff;border:1px solid var(--bd);color:var(--mu);font-size:.72rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .13s}
 .del:hover{background:var(--rl);color:var(--red);border-color:rgba(192,57,43,.2)}
 
@@ -636,6 +644,7 @@ table.pt tr:last-child td{border-bottom:none}
   <!-- HISTORIAL -->
   <div class="page" id="page-historial">
     <div class="rh" style="margin-bottom:1rem"><span class="rl">Historial de Ingresos</span></div>
+    <div id="histFilters"></div>
     <div id="historialContent"></div>
   </div>
 
@@ -981,6 +990,7 @@ function activeTemplateColor() {
 }
 let chartCustomFrom = '';
 let chartCustomTo = '';
+let histClient='', histItem='', histYear='', histFrom='', histTo='';
 let sigCanvases = {};
 let isDrawing = {};
 let sigType = 'draw';
@@ -1582,7 +1592,7 @@ function go(name) {
   if (name==='home') updateDash();
   if (name==='facturas') renderAll();
   if (name==='clientes') renderClients();
-  if (name==='historial') renderHistorial();
+  if (name==='historial') { buildHistFilters(); renderHistorial(); }
   if (name==='ajustes') { fillSettings(); syncBizSig(); syncLogo(); renderSvcMgr(); }
   if (name==='nueva') { resetForm(); addLi(); setTimeout(()=>initCanvas('bizSigCanvas'),150); }
 }
@@ -2273,42 +2283,135 @@ function renderChart() {
   `;
 }
 
-// ── HISTORIAL PAGE ──
+// ── REPORTES (HISTORIAL) — filtros Pro: cliente · item · año/rango ──
+// Filas filtradas. amount = total del documento, salvo que haya filtro de item:
+// entonces solo el subtotal (qty·price·(1+markup)) de las líneas que coinciden.
+function histRows() {
+  const fromD = histFrom ? new Date(histFrom+'T00:00:00') : null;
+  const toD   = histTo   ? new Date(histTo+'T23:59:59')   : null;
+  const yr    = histYear ? parseInt(histYear,10) : null;
+  const rows = [];
+  for (const inv of INV) {
+    if (inv.type !== 'invoice') continue;                       // decisión #2: solo facturas
+    if (histClient && inv.client !== histClient) continue;      // cliente (AND)
+    const d = new Date(inv.date+'T12:00:00');
+    if (fromD && toD) { if (d < fromD || d > toD) continue; }   // rango libre manda
+    else if (yr != null) { if (d.getFullYear() !== yr) continue; } // año calendario
+    let amount;
+    if (histItem) {                                             // decisión #3
+      const ml = (inv.lines||[]).filter(l => l.desc === histItem);
+      if (!ml.length) continue;
+      amount = ml.reduce((a,l)=> a + (l.qty*l.price*(1+(l.markup||0)/100)), 0);
+    } else {
+      amount = inv.total;
+    }
+    rows.push({ date:d, amount, paid: inv.status==='paid' });
+  }
+  return rows;
+}
+
+// Meses a mostrar según el periodo activo (rango > año > últimos 6 meses por defecto)
+function histMonths() {
+  const now = new Date(); const out = [];
+  const push = (y,m) => out.push({ y, m,
+    label: new Date(y,m,1).toLocaleDateString('es-PR',{month:'long',year:'numeric'}).replace(/^./,c=>c.toUpperCase()),
+    isCurrent: m===now.getMonth() && y===now.getFullYear() });
+  if (histFrom && histTo) {
+    let c = new Date(histFrom+'T00:00:00'); c = new Date(c.getFullYear(), c.getMonth(), 1);
+    const end = new Date(histTo+'T00:00:00');
+    while (c <= end) { push(c.getFullYear(), c.getMonth()); c.setMonth(c.getMonth()+1); }
+  } else if (histYear) {
+    const y = parseInt(histYear,10);
+    for (let m=0;m<12;m++) push(y,m);
+  } else {
+    for (let i=5;i>=0;i--) { const d=new Date(now.getFullYear(),now.getMonth()-i,1); push(d.getFullYear(),d.getMonth()); }
+  }
+  return out;
+}
+
 function renderHistorial() {
-  const data=getMonthData();
-  const now=new Date();
-  let html='';
-  // Last 6 months detail
-  for(let i=5;i>=0;i--) {
-    const d=new Date(now.getFullYear(),now.getMonth()-i,1);
-    const m=d.getMonth(); const y=d.getFullYear();
-    const monthName=d.toLocaleDateString('es-PR',{month:'long',year:'numeric'});
-    const monthInv=INV.filter(inv=>inv.type==='invoice'&&new Date(inv.date+'T12:00:00').getMonth()===m&&new Date(inv.date+'T12:00:00').getFullYear()===y);
-    const total=monthInv.reduce((a,inv)=>a+inv.total,0);
-    const collected=monthInv.filter(i=>i.status==='paid').reduce((a,inv)=>a+inv.total,0);
-    const pending=total-collected;
-    const isCurrent=m===now.getMonth()&&y===now.getFullYear();
-    html+=`<div class="chart-wrap">
+  const rows = histRows();
+  const filtersActive = !!(histClient || histItem || histYear || (histFrom && histTo));
+  const grandTotal = rows.reduce((a,r)=>a+r.amount, 0);
+  const grandColl  = rows.filter(r=>r.paid).reduce((a,r)=>a+r.amount, 0);
+  let html = `<div class="block" style="text-align:center;margin-bottom:.8rem">
+    <div style="font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--mu);margin-bottom:.5rem">${filtersActive?'Total filtrado':'Total histórico'}</div>
+    <div style="font-size:2rem;font-weight:700;color:var(--green);letter-spacing:-.03em">$${grandColl.toFixed(0)}</div>
+    <div style="font-size:.78rem;color:var(--mu);margin-top:.2rem">cobrado de $${grandTotal.toFixed(0)} facturado${filtersActive?` · ${rows.length} factura${rows.length!==1?'s':''}`:''}</div>${histItem?`
+    <div style="font-size:.66rem;color:var(--mu);margin-top:.3rem;font-style:italic">(subtotal antes de impuesto)</div>`:''}
+  </div>`;
+  for (const mo of histMonths()) {
+    const mr = rows.filter(r => r.date.getMonth()===mo.m && r.date.getFullYear()===mo.y);
+    const total = mr.reduce((a,r)=>a+r.amount,0);
+    const collected = mr.filter(r=>r.paid).reduce((a,r)=>a+r.amount,0);
+    const pending = total-collected;
+    html += `<div class="chart-wrap">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.7rem">
-        <div class="chart-title" style="margin-bottom:0">${monthName.charAt(0).toUpperCase()+monthName.slice(1)}${isCurrent?' <span style="background:var(--gl);color:var(--green);padding:.1rem .5rem;border-radius:10px;font-size:.6rem">Este mes</span>':''}</div>
+        <div class="chart-title" style="margin-bottom:0">${mo.label}${mo.isCurrent?' <span style="background:var(--gl);color:var(--green);padding:.1rem .5rem;border-radius:10px;font-size:.6rem">Este mes</span>':''}</div>
         <div style="font-size:1.1rem;font-weight:700;color:var(--ink)">$${total.toFixed(0)}</div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.6rem">
         <div class="cs"><div class="cv" style="color:var(--green)">$${collected.toFixed(0)}</div><div class="cl">Cobrado</div></div>
         <div class="cs"><div class="cv" style="color:${pending>0?'var(--am)':'var(--mu)'}">$${pending.toFixed(0)}</div><div class="cl">Pendiente</div></div>
       </div>
-      ${monthInv.length?`<div style="font-size:.72rem;color:var(--mu);margin-top:.3rem">${monthInv.length} factura${monthInv.length!==1?'s':''} · ${monthInv.filter(i=>i.status==='paid').length} cobradas</div>`:'<div style="font-size:.72rem;color:var(--mu)">Sin facturas este mes</div>'}
+      ${mr.length?`<div style="font-size:.72rem;color:var(--mu);margin-top:.3rem">${mr.length} factura${mr.length!==1?'s':''} · ${mr.filter(r=>r.paid).length} cobradas</div>`:`<div style="font-size:.72rem;color:var(--mu)">${filtersActive?'Sin facturas':'Sin facturas este mes'}</div>`}
     </div>`;
   }
-  // Grand total
-  const grandTotal=INV.filter(i=>i.type==='invoice').reduce((a,i)=>a+i.total,0);
-  const grandColl=INV.filter(i=>i.type==='invoice'&&i.status==='paid').reduce((a,i)=>a+i.total,0);
-  html=`<div class="block" style="text-align:center;margin-bottom:.8rem">
-    <div style="font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--mu);margin-bottom:.5rem">Total histórico</div>
-    <div style="font-size:2rem;font-weight:700;color:var(--green);letter-spacing:-.03em">$${grandColl.toFixed(0)}</div>
-    <div style="font-size:.78rem;color:var(--mu);margin-top:.2rem">cobrado de $${grandTotal.toFixed(0)} facturado</div>
-  </div>`+html;
-  document.getElementById('historialContent').innerHTML=html;
+  document.getElementById('historialContent').innerHTML = html;
+}
+
+// Barra de filtros: controles reales para Pro; teaser bloqueado para free.
+function buildHistFilters() {
+  const host = document.getElementById('histFilters');
+  if (!host) return;
+  if (!isProUser()) {
+    histClient=histItem=histYear=histFrom=histTo='';   // defensivo: sin filtros para free
+    host.innerHTML = `<div class="block hist-locked" onclick="document.getElementById('upgradeModal').classList.add('open')">
+      <div class="hist-locked-row"><span>Filtros de reportes <span class="tpl-pro-badge">PRO</span></span><span style="color:var(--green)">Mejorar →</span></div>
+      <p style="font-size:.72rem;color:var(--mu);margin-top:.4rem">Filtra por cliente, item y rango de fechas con Pro.</p>
+    </div>`;
+    return;
+  }
+  const inv = INV.filter(i=>i.type==='invoice');
+  const clients = [...new Set(inv.map(i=>i.client).filter(Boolean))].sort();
+  const items   = [...new Set(inv.flatMap(i=>(i.lines||[]).map(l=>l.desc)).filter(Boolean))].sort();
+  const years   = [...new Set(inv.map(i=>new Date(i.date+'T12:00:00').getFullYear()))].sort((a,b)=>b-a);
+  const opt = (v,sel)=>`<option value="${_esc(v)}"${v===sel?' selected':''}>${_esc(v)}</option>`;
+  host.innerHTML = `<div class="block">
+    <div class="hist-fh"><span class="bh" style="margin:0">Filtros</span><button class="btn bo bsm" onclick="clearHistFilters()">Limpiar</button></div>
+    <div class="hist-grid">
+      <label class="hf-l">Cliente<select id="hf-client" onchange="setHistFilter()"><option value="">Todos</option>${clients.map(c=>opt(c,histClient)).join('')}</select></label>
+      <label class="hf-l">Item<select id="hf-item" onchange="setHistFilter()"><option value="">Todos</option>${items.map(c=>opt(c,histItem)).join('')}</select></label>
+      <label class="hf-l">Año<select id="hf-year" onchange="setHistFilter()"><option value="">Todos</option>${years.map(y=>opt(String(y),histYear)).join('')}</select></label>
+    </div>
+    <div class="hist-range">
+      <label class="hf-l">Desde<input type="date" id="hf-from" value="${histFrom}"></label>
+      <label class="hf-l">Hasta<input type="date" id="hf-to" value="${histTo}"></label>
+      <button class="btn bg bsm" onclick="applyHistRange()">Aplicar rango</button>
+    </div>
+  </div>`;
+}
+
+function setHistFilter() {
+  histClient = document.getElementById('hf-client').value;
+  histItem   = document.getElementById('hf-item').value;
+  const y = document.getElementById('hf-year').value;
+  if (y !== histYear) { histYear = y; if (y) { histFrom=''; histTo=''; document.getElementById('hf-from').value=''; document.getElementById('hf-to').value=''; } }
+  renderHistorial();
+}
+
+function applyHistRange() {
+  const f = document.getElementById('hf-from').value, t = document.getElementById('hf-to').value;
+  if ((f&&!t)||(!f&&t)) { toast('Selecciona ambas fechas'); return; }
+  if (f&&t&&f>t)        { toast('La fecha inicial debe ser anterior a la final'); return; }
+  histFrom=f; histTo=t;
+  if (f&&t) { histYear=''; document.getElementById('hf-year').value=''; }   // rango excluye año
+  renderHistorial();
+}
+
+function clearHistFilters() {
+  histClient=histItem=histYear=histFrom=histTo='';
+  buildHistFilters(); renderHistorial();
 }
 
 function renderClients() {
