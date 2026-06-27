@@ -112,6 +112,12 @@ textarea{resize:vertical;min-height:66px;line-height:1.5}
 .icm{font-size:.72rem;color:var(--mu)}
 .badge{display:inline-flex;align-items:center;padding:.18rem .55rem;border-radius:20px;font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
 .badge.paid{background:var(--gl);color:var(--green)}.badge.pending{background:var(--al);color:var(--am)}.badge.overdue{background:var(--rl);color:var(--red)}
+/* Switch reutilizable (pill, sin texto interno) */
+.switch{position:relative;width:42px;height:24px;flex-shrink:0;border:none;padding:0;border-radius:999px;background:var(--bd);cursor:pointer;transition:background .18s;vertical-align:middle}
+.switch[aria-checked="true"]{background:var(--green)}
+.switch-thumb{position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.28);transition:transform .18s}
+.switch[aria-checked="true"] .switch-thumb{transform:translateX(18px)}
+.sw-label{font-size:.7rem;font-weight:700;color:var(--ink2)}
 
 /* FORM BLOCKS */
 .block{background:#fff;border:1px solid var(--bd);border-radius:var(--r);padding:1.1rem;margin-bottom:.8rem;box-shadow:var(--sh)}
@@ -2006,15 +2012,16 @@ function closeSendMenu(){
 // ── CARDS ──
 function icard(inv) {
   const d=inv.date?new Date(inv.date+'T12:00:00').toLocaleDateString('es-PR',{month:'short',day:'numeric'}):'';
-  const lbl={paid:'Cobrado',pending:inv.type==='estimate'?'Pendiente':'Pendiente',overdue:'Vencido'};
   const safe=JSON.stringify(inv).replace(/\\/g,'\\\\').replace(/'/g,"&#39;").replace(/"/g,'&quot;');
   const sigIcon = inv.clientSig ? ' <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:3px"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>' : '';
   const typeTag = inv.type==='estimate' ? `<span style="font-size:.6rem;font-weight:700;background:var(--bl);color:var(--blue);padding:.1rem .4rem;border-radius:10px;text-transform:uppercase;letter-spacing:.04em">COT</span>` : '';
-  const actionBtn = inv.type==='estimate'
-    ? `<button class="btn bg bsm" onclick="event.stopPropagation();convertToInvoice(${inv.id})" style="padding:.18rem .55rem;font-size:.65rem">→ Factura</button>`
-    : (inv.status==='pending'
-        ? `<button class="btn bok bsm" onclick="event.stopPropagation();toggleStatus(${inv.id})" style="padding:.18rem .55rem;font-size:.65rem">✓ Cobrado</button>`
-        : `<button class="btn bam bsm" onclick="event.stopPropagation();toggleStatus(${inv.id})" style="padding:.18rem .55rem;font-size:.65rem">↩ Pendiente</button>`);
+  const swLabel   = inv.type==='estimate' ? 'Convertir a Factura' : 'Pagada';
+  const swOn      = inv.type==='invoice' && inv.status==='paid';   // estimate: siempre OFF (one-way)
+  const swHandler = inv.type==='estimate' ? `convertToInvoice(${inv.id})` : `togglePaidFromList(${inv.id})`;
+  const switchEl  = `<div style="display:flex;gap:.5rem;align-items:center">
+      <span class="sw-label">${swLabel}</span>
+      <button class="switch" role="switch" aria-checked="${swOn}" aria-label="${swLabel}" onclick="event.stopPropagation();${swHandler}"><span class="switch-thumb"></span></button>
+    </div>`;
   return `<div class="ic2 ${inv.status}" onclick='openInv(${inv.id})' data-id="${inv.id}">
     <div class="ict">
       <span class="icn">${inv.client}${sigIcon} ${typeTag}</span>
@@ -2022,10 +2029,7 @@ function icard(inv) {
     </div>
     <div class="icb">
       <span class="icm">${inv.num} · ${d}</span>
-      <div style="display:flex;gap:.4rem;align-items:center">
-        <span class="badge ${inv.status}">${lbl[inv.status]}</span>
-        ${actionBtn}
-      </div>
+      ${switchEl}
     </div>
   </div>`;
 }
@@ -2081,6 +2085,18 @@ function convertToInvoice(id) {
   }
   toast('Convertida a Factura ' + newNum + ' ✓');
   if (CURRENT_INV && CURRENT_INV.id === id) showPrev(i);   // refresca el editor si está abierto
+}
+
+// Switch "Pagada" de la lista: confirm() en ambas direcciones y reusa el mismo
+// flujo de pago del editor (toggleStatus). Al revertir limpia paidDate.
+function togglePaidFromList(id){
+  const i=INV.find(x=>x.id===id); if(!i) return;
+  const goingPaid = i.status!=='paid';
+  if(!confirm(goingPaid
+      ? '¿Marcar esta factura como pagada?'
+      : '¿Revertir el pago de esta factura? Volverá a pendiente.')) return;
+  if(!goingPaid) i.paidDate=null;   // limpiar fecha ANTES de revertir; toggleStatus persiste/sincroniza
+  toggleStatus(id);                 // flujo idéntico al "Mark paid" del editor (status, sync, recibo)
 }
 
 // Botón "Marcar Pagada/Pendiente" del editor: dispara el MISMO toggleStatus y, si
