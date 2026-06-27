@@ -758,6 +758,10 @@ table.pt tr:last-child td{border-bottom:none}
       <button class="btn" onclick="editInv()" style="flex:1;background:var(--gxl);color:var(--green);border:1.5px solid rgba(26,122,74,.2)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Editar</button>
       <button class="btn" onclick="deleteInv()" style="flex:1;background:var(--rl);color:var(--red);border:1.5px solid rgba(192,57,43,.2)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg> Eliminar</button>
     </div>
+    <div class="pact-row">
+      <button class="btn bg" id="pactConvertBtn" onclick="convertToInvoice(CURRENT_INV.id)" style="flex:1;display:none">→ Convertir a Factura</button>
+      <button class="btn" id="pactPaidBtn" onclick="pactTogglePaid()" style="flex:1;display:none"></button>
+    </div>
   </div>
 </div>
 
@@ -1869,6 +1873,17 @@ function showPrev(inv) {
   document.getElementById('waBtn').dataset.href=`https://wa.me/${ph}?text=${encodeURIComponent(msg)}`;
   document.getElementById('emailBtn').dataset.href=`mailto:${inv.email||''}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`;
   document.getElementById('smsBtn').dataset.href=`sms:${inv.phone||''}?body=${encodeURIComponent(smsMsg)}`;
+  // Toggle contextual del editor: convertir (cotización) o marcar pagada (factura)
+  const _conv = document.getElementById('pactConvertBtn');
+  const _paid = document.getElementById('pactPaidBtn');
+  if (inv.type==='estimate') {
+    _conv.style.display=''; _paid.style.display='none';
+  } else {
+    _conv.style.display='none'; _paid.style.display='';
+    const isPaid = inv.status==='paid';
+    _paid.textContent = isPaid ? '↩ Marcar Pendiente' : '✓ Marcar Pagada';
+    _paid.className = isPaid ? 'btn bam' : 'btn bok';
+  }
   document.getElementById('previewModal').classList.add('open');
   document.getElementById('previewModal').scrollTop=0;
 }
@@ -1957,9 +1972,11 @@ function icard(inv) {
   const safe=JSON.stringify(inv).replace(/\\/g,'\\\\').replace(/'/g,"&#39;").replace(/"/g,'&quot;');
   const sigIcon = inv.clientSig ? ' <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:3px"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>' : '';
   const typeTag = inv.type==='estimate' ? `<span style="font-size:.6rem;font-weight:700;background:var(--bl);color:var(--blue);padding:.1rem .4rem;border-radius:10px;text-transform:uppercase;letter-spacing:.04em">COT</span>` : '';
-  const toggleBtn = inv.status==='pending'
-    ? `<button class="btn bok bsm" onclick="event.stopPropagation();toggleStatus(${inv.id})" style="padding:.18rem .55rem;font-size:.65rem">✓ Cobrado</button>`
-    : `<button class="btn bam bsm" onclick="event.stopPropagation();toggleStatus(${inv.id})" style="padding:.18rem .55rem;font-size:.65rem">↩ Pendiente</button>`;
+  const actionBtn = inv.type==='estimate'
+    ? `<button class="btn bg bsm" onclick="event.stopPropagation();convertToInvoice(${inv.id})" style="padding:.18rem .55rem;font-size:.65rem">→ Factura</button>`
+    : (inv.status==='pending'
+        ? `<button class="btn bok bsm" onclick="event.stopPropagation();toggleStatus(${inv.id})" style="padding:.18rem .55rem;font-size:.65rem">✓ Cobrado</button>`
+        : `<button class="btn bam bsm" onclick="event.stopPropagation();toggleStatus(${inv.id})" style="padding:.18rem .55rem;font-size:.65rem">↩ Pendiente</button>`);
   return `<div class="ic2 ${inv.status}" onclick='openInv(${inv.id})' data-id="${inv.id}">
     <div class="ict">
       <span class="icn">${inv.client}${sigIcon} ${typeTag}</span>
@@ -1969,7 +1986,7 @@ function icard(inv) {
       <span class="icm">${inv.num} · ${d}</span>
       <div style="display:flex;gap:.4rem;align-items:center">
         <span class="badge ${inv.status}">${lbl[inv.status]}</span>
-        ${toggleBtn}
+        ${actionBtn}
       </div>
     </div>
   </div>`;
@@ -1986,12 +2003,56 @@ function toggleStatus(id) {
   i.status = newStatus;
   if (newStatus==='paid' && !i.paidDate) i.paidDate = new Date().toISOString().split('T')[0];
   save(); updateDash(); renderAll(); checkReminders();
+  // Mantener el documento público compartido en sync con el nuevo estado.
+  // Solo si ya vive en la nube (tiene supaId): así NO forzamos INSERT de docs
+  // locales ni tocamos el trigger de límite free; es un UPDATE idempotente de la
+  // fila existente. Background + catch: no bloquea la UI (mismo patrón que saveDoc).
+  if (i.supaId) {
+    syncInvToSupabase(i).then(() => save()).catch(e => console.warn('[toggleStatus] sync:', e.message));
+  }
   if (newStatus==='paid') {
     toast('Cobrado ✓ — Abriendo recibo…');
     setTimeout(() => showPrev(i), 350);
   } else {
     toast('Marcado como pendiente');
   }
+}
+
+// Siguiente nº de factura robusto: máx. secuencia FP existente + 1 (sobrevive a
+// borrados, a diferencia del conteo usado al crear). Solo se usa en la conversión.
+function nextInvoiceSeq() {
+  return INV.reduce((m,i)=>{
+    if (i.type!=='invoice' || !i.num) return m;
+    const n = parseInt(String(i.num).split('-')[1], 10);
+    return isNaN(n) ? m : Math.max(m, n);
+  }, 0) + 1;
+}
+
+// Convierte una cotización en factura (mismo ID y slug; nº de factura nuevo).
+// Cambio interno: NO notifica al cliente. Mantiene sub/ivu/tax/total intactos.
+function convertToInvoice(id) {
+  const i = INV.find(x=>x.id===id);
+  if (!i || i.type !== 'estimate') return;
+  if (!confirm(`¿Convertir la cotización ${i.num} en factura? Se le asignará un número de factura nuevo. Esta acción no se puede deshacer.`)) return;
+  const newNum = 'FP-' + String(nextInvoiceSeq()).padStart(4,'0');
+  i.type = 'invoice';
+  i.num = newNum;                 // slug se mantiene -> los enlaces ya compartidos siguen vivos
+  save(); updateDash(); renderAll(); checkReminders();
+  if (i.supaId) {
+    syncInvToSupabase(i).then(()=>save()).catch(e=>console.warn('[convert] sync:', e.message));
+  }
+  toast('Convertida a Factura ' + newNum + ' ✓');
+  if (CURRENT_INV && CURRENT_INV.id === id) showPrev(i);   // refresca el editor si está abierto
+}
+
+// Botón "Marcar Pagada/Pendiente" del editor: dispara el MISMO toggleStatus y, si
+// el doc quedó pendiente (toggleStatus no reabre en ese caso), refresca el preview
+// abierto para que el botón no quede con label viejo.
+function pactTogglePaid() {
+  const id = CURRENT_INV?.id; if (id==null) return;
+  toggleStatus(id);
+  const i = INV.find(x=>x.id===id);
+  if (i && i.status!=='paid' && document.getElementById('previewModal').classList.contains('open')) showPrev(i);
 }
 function save(){localStorage.setItem('fpr4_inv',JSON.stringify(INV));}
 
