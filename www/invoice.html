@@ -375,7 +375,15 @@ async function init() {
 
   CURRENT_INVOICE_ID = slug;
 
-  const supa = supabase.createClient(SUPA_URL, SUPA_ANON_KEY);
+  // Safari/WebKit puede servir esta consulta GET desde su disk-cache (la respuesta de
+  // Supabase no envía Cache-Control: no-store), devolviendo una respuesta vacía/obsoleta
+  // y mostrando "Documento no encontrado" aunque la fila exista. Forzamos cache:'no-store'
+  // en cada petición de supabase-js: el navegador no lee ni guarda esta respuesta en caché.
+  const supa = supabase.createClient(SUPA_URL, SUPA_ANON_KEY, {
+    global: {
+      fetch: (input, init = {}) => fetch(input, { ...init, cache: 'no-store' })
+    }
+  });
 
   // Los enlaces usan el número de documento como slug (ej. COT-0001).
   // Por compatibilidad, si parece UUID se sigue buscando por id.

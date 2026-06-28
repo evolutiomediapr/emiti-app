@@ -2,6 +2,20 @@
   "rewrites": [
     { "source": "/invoice/:id", "destination": "/invoice.html" }
   ],
+  "headers": [
+    {
+      "source": "/invoice.html",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store, max-age=0" }
+      ]
+    },
+    {
+      "source": "/invoice/:id",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store, max-age=0" }
+      ]
+    }
+  ],
   "crons": [
     {
       "path": "/api/cron-reminders",
