@@ -786,7 +786,7 @@ table.pt tr:last-child td{border-bottom:none}
     <!-- NIVEL 3: barra de iconos (estilo nav) -->
     <div class="pact-icons">
       <button class="pi" onclick="openSigModal()"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg><span>Firma</span></button>
-      <button class="pi" onclick="window.print()"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/><line x1="9" y1="11" x2="15" y2="11"/></svg><span>PDF</span></button>
+      <button class="pi" onclick="exportPDF()"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/><line x1="9" y1="11" x2="15" y2="11"/></svg><span>PDF</span></button>
       <button class="pi" onclick="editInv()"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg><span>Editar</span></button>
       <button class="pi pi-danger" onclick="deleteInv()"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg><span>Borrar</span></button>
       <button class="pi" onclick="closePrev()"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg><span>Cerrar</span></button>
@@ -1990,6 +1990,43 @@ function refreshPreview(inv) {
   } else {
     const wm = document.getElementById('printWatermark');
     if (wm) wm.remove();
+  }
+}
+
+// ── EXPORT PDF (nativo en iOS via @capgo/capacitor-pdf-generator; window.print() en web) ──
+// Reusa el markup YA renderizado (#psheet) y el mismo <style> de la página (que incluye el
+// bloque @media print) -> sin duplicar markup ni CSS. El plugin imprime vía UIPrintPageRenderer,
+// que respeta @media print, así que el PDF sale con el layout A4 ya existente.
+// El watermark de usuarios Free se añade EXPLÍCITAMENTE: vive en #previewModal (no en #psheet),
+// por lo que psheet.outerHTML no lo incluye.
+function buildPdfHTML() {
+  const psheet = document.getElementById('psheet');
+  const css = document.querySelector('style').textContent;
+  const watermark = !isProUser() ? '<div class="free-watermark">EMITI FREE</div>' : '';
+  return `<!doctype html><html lang="es"><head><meta charset="utf-8">`
+    + `<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">`
+    + `<style>${css}</style></head><body>${psheet.outerHTML}${watermark}</body></html>`;
+}
+
+async function exportPDF() {
+  if (!CURRENT_INV) return;
+  // Web (navegador, p.ej. emiti-app.vercel.app): window.print() sí abre el diálogo nativo.
+  if (!window.Capacitor?.isNativePlatform()) { window.print(); return; }
+  // iOS nativo (WKWebView): window.print() es no-op -> generamos el PDF nativo y abrimos el share sheet.
+  try {
+    const { PdfGenerator } = Capacitor.Plugins;
+    if (!PdfGenerator) throw new Error('Plugin PDF no disponible. Reinstala la app.');
+    const inv = CURRENT_INV;
+    const label = inv.type === 'estimate' ? 'Cotizacion' : 'Factura';
+    await PdfGenerator.fromData({
+      data: buildPdfHTML(),
+      documentSize: 'A4',
+      orientation: 'portrait',
+      type: 'share',
+      fileName: `${label}-${(inv.num || 'documento').replace(/[^\w-]/g, '')}.pdf`
+    });
+  } catch (e) {
+    toast('No se pudo generar el PDF: ' + (e.message || e));
   }
 }
 

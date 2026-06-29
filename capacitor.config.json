@@ -4,7 +4,8 @@
   "webDir": "www",
   "packageClassList": [
     "FilePickerPlugin",
-    "EmitIAPPlugin"
+    "EmitIAPPlugin",
+    "PdfGeneratorPlugin"
   ],
   "plugins": {
     "CapacitorHttp": {
