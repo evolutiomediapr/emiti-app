@@ -379,7 +379,12 @@ async function init() {
   // Supabase no envía Cache-Control: no-store), devolviendo una respuesta vacía/obsoleta
   // y mostrando "Documento no encontrado" aunque la fila exista. Forzamos cache:'no-store'
   // en cada petición de supabase-js: el navegador no lee ni guarda esta respuesta en caché.
+  // persistSession:false -> el visor público NUNCA lee la sesión de Supabase que el app
+  // (mismo origen) guarda en localStorage; sin esto, createClient toma ese JWT del usuario
+  // y consulta como autenticado, donde RLS es "owner read own" (no "anon read = true"),
+  // devolviendo 0 filas/401 y mostrando "Documento no encontrado". Forzamos siempre anon.
   const supa = supabase.createClient(SUPA_URL, SUPA_ANON_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
     global: {
       fetch: (input, init = {}) => fetch(input, { ...init, cache: 'no-store' })
     }
