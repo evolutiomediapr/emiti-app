@@ -82,6 +82,14 @@ table.dt tr:last-child td{border-bottom:none}
 /* ── NOTES ── */
 .dnotes{padding:.8rem 1.4rem;border-bottom:1px solid var(--bd2);font-size:.82rem;color:var(--ink2);line-height:1.6;background:#FAFCFB}
 
+/* ── PHOTOS ── */
+.dphoto-line{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.4rem}
+.dphoto-thumb{width:54px;height:54px;object-fit:cover;border-radius:6px;border:1px solid var(--bd2);display:block}
+.dphotos{padding:1rem 1.4rem;border-bottom:1px solid var(--bd2)}
+.dphotos-lbl{font-size:.65rem;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.6rem}
+.dphotos-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:.5rem}
+.dphoto{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;border:1px solid var(--bd2);display:block}
+
 /* ── PAY BUTTONS ── */
 .dpay{padding:.9rem 1.4rem;border-bottom:1px solid var(--bd2);display:flex;flex-wrap:wrap;gap:.5rem}
 .dpay-btn{display:inline-flex;align-items:center;gap:.4rem;padding:.5rem .9rem;border-radius:8px;font-size:.8rem;font-weight:700;text-decoration:none;font-family:'Plus Jakarta Sans',sans-serif;cursor:pointer;border:none}
@@ -199,6 +207,12 @@ function showError() {
   document.getElementById('error-box').style.display = 'flex';
 }
 
+// URL pública de una foto a partir de su path almacenado (bucket public-read).
+// Mismo derivado que en el editor; el JSON guarda el path, no la URL completa.
+function photoUrl(path) {
+  return `${SUPA_URL}/storage/v1/object/public/document-photos/${path}`;
+}
+
 function renderDoc(inv, biz, logo, payments) {
   const isEst = inv.type === 'estimate';
   const label = isEst ? 'Cotización' : 'Factura';
@@ -237,9 +251,16 @@ function renderDoc(inv, biz, logo, payments) {
     const cost = parseFloat(l.price) || 0;
     const unit = cost * (1 + mk/100);
     const showBreak = inv.showMarkup && mk > 0;
+    // Fotos de la línea bajo su descripción. onerror: oculta el thumb si el
+    // archivo fue borrado o su referencia quedó colgando (borrado diferido).
+    const linePhotos = (Array.isArray(l.photos) && l.photos.length)
+      ? `<div class="dphoto-line">${l.photos.map(p =>
+          `<a href="${esc(photoUrl(p.path))}" target="_blank" rel="noopener"><img src="${esc(photoUrl(p.path))}" class="dphoto-thumb" loading="lazy" alt="" onerror="this.parentNode.style.display='none'"></a>`
+        ).join('')}</div>`
+      : '';
     return `
     <tr>
-      <td>${esc(l.desc)}${showBreak ? `<div class="dmk">Costo $${cost.toFixed(2)} · Margen ${mk}%</div>` : ''}</td>
+      <td>${esc(l.desc)}${showBreak ? `<div class="dmk">Costo $${cost.toFixed(2)} · Margen ${mk}%</div>` : ''}${linePhotos}</td>
       <td>${esc(String(l.qty))}</td>
       <td>$${unit.toFixed(2)}</td>
       <td>$${(parseFloat(l.qty) * unit).toFixed(2)}</td>
@@ -259,6 +280,17 @@ function renderDoc(inv, biz, logo, payments) {
   };
   const accentHex = (tpl !== 'classic' && biz.templateColor && TPL_TINTS[biz.templateColor]) ? biz.templateColor : null;
   const accentStyle = accentHex ? ` style="--accent:${accentHex};--accent-tint:${TPL_TINTS[accentHex]}"` : '';
+
+  // Galería de fotos generales del documento (al final). Mismo onerror defensivo.
+  const docPhotos = Array.isArray(inv.photos) ? inv.photos : [];
+  const photosHtml = docPhotos.length
+    ? `<div class="dphotos">
+         <div class="dphotos-lbl">Fotos</div>
+         <div class="dphotos-grid">${docPhotos.map(p =>
+           `<a href="${esc(photoUrl(p.path))}" target="_blank" rel="noopener"><img src="${esc(photoUrl(p.path))}" class="dphoto" loading="lazy" alt="" onerror="this.parentNode.style.display='none'"></a>`
+         ).join('')}</div>
+       </div>`
+    : '';
 
   const wrap = document.getElementById('doc-wrap');
   wrap.innerHTML = `
@@ -328,6 +360,7 @@ function renderDoc(inv, biz, logo, payments) {
 
       ${inv.notes ? `<div class="dnotes">${esc(inv.notes)}</div>` : ''}
       ${payHtml}
+      ${photosHtml}
 
       <div class="dfooter">
         Gracias por su preferencia.${biz.phone ? `<br>${esc(biz.phone)}` : ''}

@@ -273,6 +273,12 @@ table.pt tr:last-child td{border-bottom:none}
 .ppay-btns{display:flex;gap:.5rem;justify-content:center;flex-wrap:wrap}
 .ppay-btn{padding:.45rem .8rem;border-radius:6px;font-size:.75rem;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:.3rem}
 .pfooter{text-align:center;font-size:.7rem;color:#B0BDB6;border-top:1px solid #E2EAE5;padding-top:.8rem;line-height:1.6}
+.pphoto-line{display:flex;flex-wrap:wrap;gap:.3rem;margin-top:.35rem}
+.pphoto-thumb{width:48px;height:48px;object-fit:cover;border-radius:5px;border:1px solid var(--bd2)}
+.pphotos{margin-bottom:1rem}
+.pphotos-lbl{font-size:.6rem;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.5rem}
+.pphotos-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:.4rem}
+.pphoto{width:100%;aspect-ratio:1;object-fit:cover;border-radius:6px;border:1px solid var(--bd2)}
 /* ── TEMPLATE PICKER (settings) ── */
 .tpl-picker{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
 .tpl-card{position:relative;border:1.5px solid var(--bd);border-radius:10px;padding:.55rem;cursor:pointer;background:#fff;transition:border-color .15s,box-shadow .15s}
@@ -287,6 +293,17 @@ table.pt tr:last-child td{border-bottom:none}
 .tpl-name{font-size:.78rem;font-weight:700;color:var(--ink);display:flex;align-items:center;gap:.35rem;flex-wrap:wrap}
 .tpl-desc{font-size:.62rem;color:var(--mu);margin-top:.12rem;line-height:1.3}
 .tpl-pro-badge{font-size:.54rem;font-weight:800;color:#fff;background:var(--green);padding:.08rem .3rem;border-radius:4px;letter-spacing:.04em}
+/* Fotos del documento / por línea */
+.ph-strip{display:flex;flex-wrap:wrap;align-items:center;gap:.45rem}
+.ph-line{margin-top:.45rem}
+.ph-thumb{position:relative;width:58px;height:58px;border-radius:8px;overflow:hidden;border:1px solid var(--bd2);background:var(--bg)}
+.ph-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.ph-del{position:absolute;top:2px;right:2px;width:18px;height:18px;border:none;border-radius:50%;background:rgba(17,25,21,.6);color:#fff;font-size:.66rem;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+.ph-add{width:58px;height:58px;border-radius:8px;border:1.5px dashed var(--bd);background:var(--gxl);color:var(--green);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;cursor:pointer;font-family:inherit}
+.ph-add-ic{width:20px;height:20px}
+.ph-add-tx{font-size:.56rem;font-weight:700}
+.ph-count{font-size:.68rem;color:var(--mu);font-weight:700;margin-left:.15rem}
+.ph-locked{background:var(--gxl);border:1.5px dashed var(--bd);cursor:pointer;display:inline-flex;align-items:center;gap:.4rem;font-size:.72rem;color:var(--mu);padding:.5rem .7rem;border-radius:8px;font-family:inherit}
 .tpl-check{position:absolute;top:.5rem;right:.5rem;width:18px;height:18px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.7rem}
 .tpl-lock{position:absolute;top:.5rem;right:.5rem;color:var(--mu)}
 /* Accent color swatches (only shown for the 4 Pro templates) */
@@ -630,6 +647,12 @@ table.pt tr:last-child td{border-bottom:none}
       <div class="f"><label>Notas</label><textarea id="f-not" placeholder="Pago dentro de 7 días…" style="min-height:50px"></textarea></div>
     </div>
 
+    <!-- FOTOS DEL DOCUMENTO (Pro) -->
+    <div class="block" id="doc-photos-block">
+      <div class="bh">Fotos del documento</div>
+      <div id="docPhotoStrip" class="ph-strip"></div>
+    </div>
+
     <!-- FIRMA DEL NEGOCIO -->
     <div class="block" id="biz-sig-block">
       <div class="bh">Tu Firma</div>
@@ -916,7 +939,7 @@ table.pt tr:last-child td{border-bottom:none}
     <div class="upg-icon">
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
     </div>
-    <div class="upg-title">Límite del mes alcanzado</div>
+    <div class="upg-title" id="upg-title">Límite del mes alcanzado</div>
     <div class="upg-sub" id="upg-msg">Has alcanzado el límite de tu plan Free este mes.</div>
     <div class="upg-features">
       <div class="upg-feat"><span style="color:var(--green);font-size:1rem">✓</span> Facturas y cotizaciones ilimitadas</div>
@@ -931,7 +954,7 @@ table.pt tr:last-child td{border-bottom:none}
       <a href="#" onclick="window.open('https://www.emiti.app/privacy-policy.html','_blank');return false" style="color:var(--green);text-decoration:underline;cursor:pointer">Política de Privacidad</a>
       <a href="#" onclick="window.open('https://www.emiti.app/terms.html','_blank');return false" style="color:var(--green);text-decoration:underline;cursor:pointer">Términos de Uso</a>
     </div>
-    <button class="btn bo" style="width:100%;margin-bottom:.4rem" onclick="document.getElementById('upgradeModal').classList.remove('open')">Ahora no</button>
+    <button class="btn bo" style="width:100%;margin-bottom:.4rem" onclick="closeUpgrade()">Ahora no</button>
     <button id="btn-restore-iap" class="btn" style="width:100%;font-size:.72rem;color:var(--muted);display:none" onclick="restoreIOSPurchases()">Restaurar compra anterior</button>
   </div>
 </div>
@@ -958,6 +981,18 @@ let LN = 0;
 let DOC_TYPE = 'invoice';
 let CURRENT_INV = null;
 let chartFilter = 'month';
+// Estado de fotos del documento EN EDICIÓN (no viven en inputs del DOM, igual
+// que LOGO/BIZ_SIG). Se siembran en editInv(), se limpian en resetForm() y se
+// vuelcan al JSON en getForm(). PHOTO_DOC_ID = carpeta de Storage del doc;
+// DOC_PHOTOS = fotos generales (hasta 5); LINE_PHOTOS = fotos por línea,
+// indexadas por lid (hasta 4 c/u).
+let PHOTO_DOC_ID = null;
+let DOC_PHOTOS = [];
+let LINE_PHOTOS = {};
+// Borrado diferido: al quitar una foto se encola su path aquí y SOLO se borra de
+// Storage tras un guardado con sync a Supabase confirmado (saveDoc). Si el editor
+// se cierra sin guardar, se limpia sin borrar (los archivos siguen referenciados).
+let PENDING_PHOTO_DELETES = [];
 
 // Single source of truth for Pro status.
 function isProUser() {
@@ -1244,6 +1279,7 @@ function getUsage() {
 
 function showUpgradeModal(docType) {
   const label = docType === 'invoice' ? 'facturas' : 'cotizaciones';
+  document.getElementById('upg-title').textContent = 'Límite del mes alcanzado';
   document.getElementById('upg-msg').textContent =
     `Alcanzaste el límite de ${FREE_LIMIT} ${label} este mes en el plan Free.`;
   document.getElementById('upgradeModal').classList.add('open');
@@ -1629,12 +1665,16 @@ function setDocType(type, el) {
 }
 
 // ── LINES ──
-function addLi() {
+function addLi(lid) {
   LN++;
   const id = LN;
   const pro = isProUser();
   const d = document.createElement('div');
   d.className = 'li'; d.id = 'li'+id;
+  // Id estable de línea: persiste en el JSON para mapear sus fotos entre
+  // guardado y reapertura. Legacy: si la línea no traía lid, se genera ahora.
+  const theLid = lid || uuid();
+  d.dataset.lid = theLid;
   d.innerHTML = `<div class="lig">
     <input type="text" placeholder="Descripción" id="ld${id}" oninput="calc()">
     <input type="number" placeholder="Cant" value="1" min="0" id="lq${id}" oninput="calcLi(${id})">
@@ -1646,8 +1686,10 @@ function addLi() {
       ? `<div class="limk">Markup <input type="number" class="limk-in" placeholder="0" min="0" step="1" id="lm${id}" oninput="calcLi(${id})">%<span class="limk-hint" id="lh${id}"></span></div>`
       : `<button type="button" class="limk-locked" onclick="markupUpsell()">+ Markup <span class="tpl-pro-badge">PRO</span></button>`}
     <div class="lisub" id="ls${id}">$0.00</div>
-  </div>`;
+  </div>
+  <div class="ph-strip ph-line" data-lid="${theLid}"></div>`;
   document.getElementById('liItems').appendChild(d);
+  renderPhotoStrip('line', theLid);
 }
 
 // Non-Pro tapping the markup affordance -> same upgrade modal as templates/color.
@@ -1687,6 +1729,17 @@ function calc() {
 // El índice UNIQUE en invoices.slug atrapa cualquier colisión improbable.
 function randSlug() { return Math.random().toString(36).slice(2, 7).padEnd(5, '0'); }
 
+// UUID v4 con fallback: crypto.randomUUID solo existe en WKWebView iOS 15.4+,
+// así que no lo asumimos. Se usa para photoDocId (carpeta de Storage) y lid
+// (id estable de línea).
+function uuid() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
+
 function getForm() {
   const lines=[]; let sub=0;
   document.querySelectorAll('[id^="lq"]').forEach(el=>{
@@ -1697,6 +1750,12 @@ function getForm() {
     if(desc||price){
       const line={desc:desc||'Servicio',qty,price};
       if(markup>0) line.markup=markup;          // solo se guarda si >0 (docs viejos/free intactos)
+      const lid=document.getElementById('li'+id)?.dataset.lid;
+      if(lid){
+        line.lid=lid;
+        const lp=LINE_PHOTOS[lid];             // fotos de esta línea (subidas en Storage)
+        if(lp&&lp.length) line.photos=lp.slice(); // COPIA: no compartir el array vivo con el global de edición
+      }
       lines.push(line);
       sub+=qty*price*(1+markup/100);
     }
@@ -1722,7 +1781,12 @@ function getForm() {
     notes:document.getElementById('f-not').value.trim(),
     bizSig: BIZ_SIG,
     lines, sub, dsc, ivu, tax, total:taxable+tax, status:'pending',
-    showMarkup: document.getElementById('f-showmk')?.checked || false
+    showMarkup: document.getElementById('f-showmk')?.checked || false,
+    // Fotos del documento: solo se persisten si el doc tiene carpeta de Storage
+    // (photoDocId se genera perezosamente al subir la 1ra foto). Docs sin fotos
+    // quedan byte-idénticos a antes.
+    ...(PHOTO_DOC_ID ? { photoDocId: PHOTO_DOC_ID } : {}),
+    ...(DOC_PHOTOS.length ? { photos: DOC_PHOTOS.slice() } : {})
   };
 }
 
@@ -1751,9 +1815,13 @@ async function saveDoc() {
       save(); checkReminders();
       toast(d.type==='invoice'?'Factura actualizada ✓':'Cotización actualizada ✓');
       go('facturas');
+      // Borrado diferido: snapshot de la cola; el global se limpia ya (esta sesión
+      // de edición se commiteó). Las fotos se borran SOLO si el sync a Supabase
+      // confirma — si falla, Supabase aún referencia esas fotos, así que NO se borran.
+      const pendingDeletes = PENDING_PHOTO_DELETES; PENDING_PHOTO_DELETES = [];
       // Sync en background — no bloquea la UI. El guardado autoritativo se reintenta y
       // se verifica al compartir (ensureShareable). Aquí solo avisamos si falla con sesión real.
-      syncInvToSupabase(d).then(() => save()).catch(e => {
+      syncInvToSupabase(d).then(() => { save(); flushPhotoDeletes(pendingDeletes); }).catch(e => {
         console.warn('[saveDoc] update sync error:', e);
         if (CURRENT_USER && !CURRENT_USER.is_anonymous) toast('⚠️ Cambios guardados localmente, pero no se sincronizaron a la nube');
       });
@@ -1782,6 +1850,9 @@ async function saveDoc() {
         if (d.type === 'invoice') USER_PROFILE.invoices_this_month = (USER_PROFILE.invoices_this_month || 0) + 1;
         else USER_PROFILE.quotes_this_month = (USER_PROFILE.quotes_this_month || 0) + 1;
         updatePlanBar();
+        // Sync confirmado → ahora sí borrar los archivos encolados. Si NO se sincronizó
+        // (offline), se dejan: son huérfanos inofensivos (doc nuevo nunca los referenció).
+        flushPhotoDeletes(PENDING_PHOTO_DELETES); PENDING_PHOTO_DELETES = [];
       }
       toast(d.type==='invoice'?'Factura guardada ✓':'Cotización guardada ✓');
       go('facturas');
@@ -1815,6 +1886,8 @@ function prevCur() {
 
 function resetForm() {
   window._editingId = null;
+  PHOTO_DOC_ID = null; DOC_PHOTOS = []; LINE_PHOTOS = {};   // doc nuevo: sin fotos
+  PENDING_PHOTO_DELETES = [];                                // descarta borrados no guardados
   ['f-cli','f-tel','f-email','f-adr','f-not'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('f-sms-consent').checked=false;
   document.getElementById('f-dsc').value='0'; document.getElementById('f-ivu').value='11.5';
@@ -1825,6 +1898,7 @@ function resetForm() {
   DOC_TYPE='invoice';
   document.querySelectorAll('#page-nueva .tabs .tab').forEach((t,i)=>{t.classList.toggle('active',i===0);});
   const vw=document.getElementById('validity-wrap'); if(vw)vw.style.display='none';
+  renderPhotoStrip('doc');   // strip de fotos generales vacío
   calc();
 }
 
@@ -1954,7 +2028,8 @@ function refreshPreview(inv) {
       <thead><tr><th>Descripción</th><th style="text-align:center">Cant</th><th style="text-align:right">Precio</th><th>Total</th></tr></thead>
       <tbody>${inv.lines.map(l=>{
         const mk=l.markup||0; const unit=l.price*(1+mk/100); const showBreak=inv.showMarkup&&mk>0;
-        return `<tr><td>${l.desc}${showBreak?`<div class="pmk">Costo $${l.price.toFixed(2)} · Margen ${mk}%</div>`:''}</td><td style="text-align:center">${l.qty}</td><td style="text-align:right">$${unit.toFixed(2)}</td><td class="w">$${(l.qty*unit).toFixed(2)}</td></tr>`;
+        const linePhotos=(Array.isArray(l.photos)&&l.photos.length)?`<div class="pphoto-line">${l.photos.map(p=>`<img src="${photoUrl(p.path)}" class="pphoto-thumb" loading="lazy" alt="" onerror="this.style.display='none'">`).join('')}</div>`:'';
+        return `<tr><td>${l.desc}${showBreak?`<div class="pmk">Costo $${l.price.toFixed(2)} · Margen ${mk}%</div>`:''}${linePhotos}</td><td style="text-align:center">${l.qty}</td><td style="text-align:right">$${unit.toFixed(2)}</td><td class="w">$${(l.qty*unit).toFixed(2)}</td></tr>`;
       }).join('')}</tbody>
     </table>
     <div class="ptots">
@@ -1966,6 +2041,7 @@ function refreshPreview(inv) {
     ${inv.notes?`<div class="pnotes"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:4px"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>${inv.notes}</div>`:''}
     ${buildPayBtns(inv)}
     ${buildSigSection(inv)}
+    ${(Array.isArray(inv.photos)&&inv.photos.length)?`<div class="pphotos"><div class="pphotos-lbl">Fotos</div><div class="pphotos-grid">${inv.photos.map(p=>`<img src="${photoUrl(p.path)}" class="pphoto" loading="lazy" alt="" onerror="this.style.display='none'">`).join('')}</div></div>`:''}
     <div class="pfooter">Gracias por su preferencia.${B.phone?`<br>Contacto: ${B.phone}`:''}<br><span style="font-size:.62rem">Generado con Emiti · emiti.app</span></div>
   `;
   const _psheet = document.getElementById('psheet');
@@ -2769,12 +2845,23 @@ function editInv() {
     document.getElementById('f-ivu').value = inv.ivu || (DOC_TYPE==='invoice'?11.5:0);
     if (inv.validUntil) document.getElementById('f-valid').value = inv.validUntil;
 
+    // Sembrar estado de fotos del doc (retrocompat: docs viejos sin estos campos)
+    PHOTO_DOC_ID = inv.photoDocId || null;
+    DOC_PHOTOS = Array.isArray(inv.photos) ? [...inv.photos] : [];
+    LINE_PHOTOS = {};
+    PENDING_PHOTO_DELETES = [];   // arranca limpio; descarta cola de sesión previa
+
     // Fill line items
     document.getElementById('liItems').innerHTML = '';
     LN = 0;
     (inv.lines || []).forEach(l => {
-      addLi();
+      addLi(l.lid);                       // reusa lid guardado; legacy → genera uno
       const id = LN;
+      const lid = document.getElementById('li'+id).dataset.lid;
+      if (Array.isArray(l.photos) && l.photos.length) {
+        LINE_PHOTOS[lid] = [...l.photos];
+        renderPhotoStrip('line', lid);    // addLi lo pintó vacío; refrescar con fotos
+      }
       document.getElementById('ld'+id).value = l.desc || '';
       document.getElementById('lq'+id).value = l.qty || 1;
       document.getElementById('lp'+id).value = l.price || 0;
@@ -2783,6 +2870,7 @@ function editInv() {
       calcLi(id);
     });
     const smk = document.getElementById('f-showmk'); if (smk) smk.checked = !!inv.showMarkup;
+    renderPhotoStrip('doc');              // fotos generales del doc en edición
 
     // Mark as editing this invoice
     window._editingId = inv.id;
@@ -2975,6 +3063,16 @@ window.onload = async () => {
 <!-- Hidden file input used only on web (non-iOS) -->
 <input type="file" id="logoFileInput" accept="image/*" style="display:none" onchange="handleLogo(event)">
 
+<!-- Sheet doble para fotos del documento (nativo): Galería o Archivos, sin cámara -->
+<div id="photoSourceSheet" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;align-items:flex-end;justify-content:center" onclick="if(event.target===this)closePhotoSheet()">
+  <div style="background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:500px;padding:1.2rem 1.2rem 2rem">
+    <div style="text-align:center;font-weight:600;margin-bottom:1rem;font-size:.95rem;color:var(--ink)">Agregar Foto</div>
+    <button onclick="pickPhotoFrom('gallery')" style="width:100%;padding:.85rem;border:none;background:var(--gxl);color:var(--green);border-radius:10px;font-size:.95rem;font-weight:600;margin-bottom:.6rem;cursor:pointer">Photo Library</button>
+    <button onclick="pickPhotoFrom('files')" style="width:100%;padding:.85rem;border:none;background:var(--gxl);color:var(--green);border-radius:10px;font-size:.95rem;font-weight:600;margin-bottom:.8rem;cursor:pointer">Choose File</button>
+    <button onclick="closePhotoSheet()" style="width:100%;padding:.75rem;border:none;background:#f0f0f0;color:#666;border-radius:10px;font-size:.9rem;cursor:pointer">Cancelar</button>
+  </div>
+</div>
+
 <script>
 // ── LOGO PICKER (sin cámara) ──
 function openLogoPicker() {
@@ -3015,6 +3113,236 @@ async function pickLogoFromFiles() {
     syncLogo();
     toast('Logo guardado ✓');
   } catch (_) {}
+}
+
+// ── DOCUMENT PHOTOS · motor (selección sin cámara → compresión → subida) ──
+// Logo/firma SIGUEN base64 inline; esto es SOLO para las fotos del documento,
+// que viven en Supabase Storage (bucket public-read "document-photos").
+const MAX_DOC_PHOTOS = 5;    // fotos generales por documento
+const MAX_LINE_PHOTOS = 4;   // fotos por línea
+
+// photoDocId perezoso: solo se crea al subir la 1ra foto de un doc que no lo tiene.
+function ensurePhotoDocId() { if (!PHOTO_DOC_ID) PHOTO_DOC_ID = uuid(); return PHOTO_DOC_ID; }
+
+// URL pública derivada del path (no guardamos la URL completa: portable si
+// cambia bucket/proyecto o si algún día migramos a URLs firmadas).
+function photoUrl(path) {
+  return `${SUPA_URL}/storage/v1/object/public/document-photos/${path}`;
+}
+
+// FilePicker nativo entrega base64; lo pasamos a Blob para el canvas.
+function base64ToBlob(b64, mime) {
+  const bin = atob(b64), len = bin.length, bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: mime || 'image/jpeg' });
+}
+
+// Decodifica respetando orientación EXIF (fotos de iPhone vienen rotadas).
+// createImageBitmap+imageOrientation existe en WKWebView 15.4+; fallback a <img>
+// (que también aplica EXIF al pintar) para WebViews más viejos.
+async function decodeImage(blob) {
+  try {
+    return await createImageBitmap(blob, { imageOrientation: 'from-image' });
+  } catch (_) {
+    return await new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+      img.onerror = e => { URL.revokeObjectURL(url); reject(e); };
+      img.src = url;
+    });
+  }
+}
+
+// Redimensiona a máx 1600px de lado y exporta JPEG calidad 0.8.
+// De ~5 MB HEIC de cámara a ~300 KB JPEG universal. Devuelve {blob,w,h}.
+async function compressToJpeg(blob) {
+  const bmp = await decodeImage(blob);
+  let w = bmp.width || bmp.naturalWidth, h = bmp.height || bmp.naturalHeight;
+  const MAX = 1600;
+  if (w > MAX || h > MAX) {
+    const s = MAX / Math.max(w, h);
+    w = Math.round(w * s); h = Math.round(h * s);
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  canvas.getContext('2d').drawImage(bmp, 0, 0, w, h);
+  if (bmp.close) bmp.close();
+  const out = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.8));
+  return { blob: out || blob, w, h };
+}
+
+// Sube un JPEG ya comprimido al path definido y devuelve {id,path}.
+//   general:  {userId}/{photoDocId}/general/{uuid}.jpg
+//   por línea:{userId}/{photoDocId}/items/{lid}/{uuid}.jpg
+async function uploadDocumentPhoto(jpegBlob, scope, lid) {
+  const uid = CURRENT_USER?.id;
+  if (!uid) throw new Error('Sesión requerida para subir fotos');
+  ensurePhotoDocId();
+  const photoId = uuid();
+  const folder = scope === 'line' ? `items/${lid}` : 'general';
+  const path = `${uid}/${PHOTO_DOC_ID}/${folder}/${photoId}.jpg`;
+  const { error } = await supa.storage.from('document-photos')
+    .upload(path, jpegBlob, { contentType: 'image/jpeg', upsert: false });
+  if (error) throw new Error(error.message);
+  return { id: photoId, path };
+}
+
+// Borrado en lote de los archivos encolados (se llama tras un guardado con sync
+// confirmado). Sin edge function de limpieza por ahora.
+async function flushPhotoDeletes(paths) {
+  if (!paths || !paths.length || !supa) return;
+  try {
+    const { error } = await supa.storage.from('document-photos').remove(paths);
+    if (error) console.warn('[photo] borrado de Storage falló:', error.message);
+  } catch (e) { console.warn('[photo] borrado de Storage falló:', e.message); }
+}
+
+// Selección SIN cámara, mismo patrón aprobado por Apple que el logo.
+//   Nativo: galería (pickImages) o archivos (pickFiles) — ambos sin cámara.
+//   Web: <input type=file> efímero (mismo accept que el logo).
+// Devuelve un array de Blobs.
+async function pickPhotoBlobs(source) {
+  if (window.Capacitor && Capacitor.isNativePlatform()) {
+    const { FilePicker } = Capacitor.Plugins;
+    const res = source === 'files'
+      ? await FilePicker.pickFiles({ multiple: true, readData: true, types: ['image/*'] })
+      : await FilePicker.pickImages({ multiple: true, readData: true });
+    return (res?.files || []).map(f => base64ToBlob(f.data, f.mimeType || 'image/jpeg'));
+  }
+  return new Promise(resolve => {
+    const input = document.createElement('input');
+    input.type = 'file'; input.accept = 'image/*'; input.multiple = true;
+    input.onchange = () => resolve(Array.from(input.files || []));
+    input.click();
+  });
+}
+
+// Orquestador: gate Pro + límite + sesión real → selección → compresión → subida.
+// scope: 'doc' (generales) | 'line' (con lid). source (nativo): 'gallery'|'files'.
+// renderPhotoStrip() lo provee el Paso 4 (UI); se llama de forma defensiva.
+let _photoBusy = false;
+async function addPhotos(scope, lid, source) {
+  if (!isProUser()) { openPhotoUpsell(); return; }
+  if (_photoBusy) return;
+
+  const arr = scope === 'line' ? (LINE_PHOTOS[lid] || (LINE_PHOTOS[lid] = [])) : DOC_PHOTOS;
+  const max = scope === 'line' ? MAX_LINE_PHOTOS : MAX_DOC_PHOTOS;
+  const remaining = max - arr.length;
+  if (remaining <= 0) { toast(`Máximo ${max} fotos`); return; }
+
+  // RLS bloquea inserts anónimos: exige sesión real de GoTrue (no CURRENT_USER).
+  const { data: { session } } = supa ? await supa.auth.getSession() : { data: { session: null } };
+  if (!session || session.user.is_anonymous) { toast('🔒 Inicia sesión para agregar fotos'); return; }
+
+  let blobs;
+  try { blobs = await pickPhotoBlobs(source); } catch (_) { return; }
+  if (!blobs || !blobs.length) return;
+  if (blobs.length > remaining) toast(`Solo caben ${remaining} más; se usarán esas`);
+  blobs = blobs.slice(0, remaining);
+
+  _photoBusy = true;
+  toast(blobs.length > 1 ? `Subiendo ${blobs.length} fotos…` : 'Subiendo foto…');
+  let added = 0;
+  for (const b of blobs) {
+    try {
+      const { blob, w, h } = await compressToJpeg(b);
+      const meta = await uploadDocumentPhoto(blob, scope, lid);
+      arr.push({ ...meta, w, h });
+      added++;
+    } catch (e) {
+      console.error('[photo] subida falló:', e);
+      toast('⚠️ No se pudo subir una foto: ' + (e.message || e));
+    }
+  }
+  _photoBusy = false;
+  if (added) toast(added > 1 ? `${added} fotos agregadas ✓` : 'Foto agregada ✓');
+  if (typeof renderPhotoStrip === 'function') renderPhotoStrip(scope, lid);
+}
+
+// Quitar una foto: la saca del array en memoria y ENCOLA su path para borrado
+// diferido. El archivo se borra de Storage solo cuando el doc se guarda con sync
+// confirmado (ver saveDoc). Si se cierra el editor sin guardar, la cola se limpia
+// sin borrar y el archivo sigue referenciado por el documento sin cambios.
+function removePhoto(scope, lid, photoId) {
+  const arr = scope === 'line' ? (LINE_PHOTOS[lid] || []) : DOC_PHOTOS;
+  const idx = arr.findIndex(p => p.id === photoId);
+  if (idx === -1) return;
+  const [removed] = arr.splice(idx, 1);
+  if (removed?.path) PENDING_PHOTO_DELETES.push(removed.path);
+  if (typeof renderPhotoStrip === 'function') renderPhotoStrip(scope, lid);
+}
+
+// ── DOCUMENT PHOTOS · UI (render + sheet doble) ──
+// Pinta el strip de un scope: thumbnails (con ✕) + botón "+ Agregar" (bajo el
+// máximo) + contador "X/N"; o, si no es Pro, el candado con CTA al upgrade.
+function renderPhotoStrip(scope, lid) {
+  const container = scope === 'line'
+    ? document.querySelector('.ph-strip[data-lid="' + lid + '"]')
+    : document.getElementById('docPhotoStrip');
+  if (!container) return;
+  const max = scope === 'line' ? MAX_LINE_PHOTOS : MAX_DOC_PHOTOS;
+  const arr = scope === 'line' ? (LINE_PHOTOS[lid] || []) : DOC_PHOTOS;
+  const lidArg = lid ? "'" + lid + "'" : 'null';
+  const pro = isProUser();
+
+  // No-Pro SIN fotos → candado con CTA de upgrade (discovery).
+  // No-Pro CON fotos (p.ej. degradado de Pro) → thumbnails en solo-lectura:
+  // se ven las existentes pero sin ✕ ni "+". El visor público las sigue mostrando.
+  if (!pro && !arr.length) {
+    container.innerHTML = '<button type="button" class="ph-locked" onclick="openPhotoUpsell()">'
+      + '🔒 Agregar fotos <span class="tpl-pro-badge">PRO</span></button>';
+    return;
+  }
+
+  let html = '';
+  arr.forEach(p => {
+    html += '<div class="ph-thumb"><img src="' + photoUrl(p.path) + '" loading="lazy" alt="" '
+      + 'onerror="this.parentNode.style.display=\'none\'">'
+      // El ✕ de borrar solo para Pro; no-Pro con fotos = solo lectura.
+      + (pro ? '<button type="button" class="ph-del" onclick="removePhoto(\'' + scope + '\',' + lidArg + ',\'' + p.id + '\')">✕</button>' : '')
+      + '</div>';
+  });
+  // "+ Agregar" y contador solo para Pro.
+  if (pro) {
+    if (arr.length < max) {
+      html += '<button type="button" class="ph-add" onclick="openPhotoSheet(\'' + scope + '\',' + lidArg + ')">'
+        + '<svg class="ph-add-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>'
+        + '<span class="ph-add-tx">Agregar</span></button>';
+    }
+    html += '<span class="ph-count">' + arr.length + '/' + max + '</span>';
+  }
+  container.innerHTML = html;
+}
+
+// Abre la selección. Nativo: sheet doble (Galería/Archivos). Web: input directo.
+let _photoSheetScope = null, _photoSheetLid = null;
+function openPhotoSheet(scope, lid) {
+  if (window.Capacitor && Capacitor.isNativePlatform()) {
+    _photoSheetScope = scope; _photoSheetLid = lid || null;
+    document.getElementById('photoSourceSheet').style.display = 'flex';
+  } else {
+    addPhotos(scope, lid);   // web: <input type=file> directo (sin sheet)
+  }
+}
+function closePhotoSheet() { document.getElementById('photoSourceSheet').style.display = 'none'; }
+function pickPhotoFrom(source) {
+  closePhotoSheet();
+  addPhotos(_photoSheetScope, _photoSheetLid, source);
+}
+
+// CTA de upgrade del feature (no es el límite mensual): abre el modal Pro.
+function openPhotoUpsell() {
+  document.getElementById('upg-title').textContent = 'Las fotos son función Pro';
+  document.getElementById('upg-msg').textContent = 'Agrega fotos a tus facturas y cotizaciones con el plan Pro.';
+  document.getElementById('upgradeModal').classList.add('open');
+}
+// Cierra el modal y restaura el copy genérico, para que un gate posterior
+// (límite mensual, markup, plantillas) no herede el texto específico de fotos.
+function closeUpgrade() {
+  document.getElementById('upgradeModal').classList.remove('open');
+  document.getElementById('upg-title').textContent = 'Límite del mes alcanzado';
+  document.getElementById('upg-msg').textContent = 'Has alcanzado el límite de tu plan Free este mes.';
 }
 </script>
 </body>
