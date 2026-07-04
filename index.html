@@ -1272,12 +1272,10 @@ async function authSignup() {
   if (pass.length < 6) { showAuthErr('La contraseña debe tener al menos 6 caracteres'); return; }
   const btn = document.getElementById('btn-signup');
   btn.textContent = 'Creando cuenta…'; btn.classList.add('auth-loading');
-  // En nativo, confirmar desde el iPhone abre la app ya logueada (deep link);
-  // en web el link aterriza en producción.
-  const emailRedirectTo = window.Capacitor?.isNativePlatform()
-    ? 'emiti://confirmed'
-    : 'https://emiti-app.vercel.app';
-  const { data, error } = await supa.auth.signUp({ email, password: pass, options: { emailRedirectTo } });
+  // emailRedirectTo es inerte desde que los templates enlazan directo con
+  // {{ .TokenHash }} (Universal Links); solo aplicaría si se restaurara
+  // {{ .ConfirmationURL }} en el template.
+  const { data, error } = await supa.auth.signUp({ email, password: pass, options: { emailRedirectTo: 'https://emiti-app.vercel.app' } });
   btn.textContent = 'Crear cuenta gratis'; btn.classList.remove('auth-loading');
   if (error) { showAuthErr(error.message); return; }
 
@@ -1333,12 +1331,37 @@ async function authResendConfirmation() {
   setTimeout(() => { RESEND_COOLDOWN = false; if (link) link.style.opacity = '1'; }, 60000);
 }
 
+// ── CONFIRMACIÓN POR TOKEN_HASH (Universal Links / links directos de email) ──
+// Los templates de email enlazan directo a /auth/confirm?token_hash=…&type=…
+// (sin pasar por el /verify de GoTrue): con app instalada iOS lo intercepta
+// (appUrlOpen); sin app, la web llama verifyOtp. Compartido por ambos caminos.
+async function confirmWithTokenHash(tokenHash, type) {
+  // ORDEN CRÍTICO: el flag antes de verifyOtp — su SIGNED_IN cae en los guards
+  // existentes de recovery (form de nueva contraseña, no abrir la app).
+  if (type === 'recovery') RECOVERY_MODE = true;
+  const { error } = await supa.auth.verifyOtp({ type, token_hash: tokenHash });
+  if (error) {
+    RECOVERY_MODE = false;
+    showAuthModal();
+    showAuthErr(error.message);   // translateAuthError ya cubre otp_expired
+  }
+  // Éxito: SIGNED_IN → guards existentes (recovery → newpass; signup → app abierta)
+}
+
 // ── DEEP LINKS (iOS) ──
 // emiti://…#access_token=…&refresh_token=…&type=recovery|signup
 // A diferencia de web, el fragmento nos llega a nosotros (supabase-js solo
 // procesa el hash de window.location), así que la sesión se establece a mano
 // con setSession.
 async function handleDeepLink(url) {
+  // Universal Link nuevo: https://app.emiti.app/auth/confirm?token_hash=…&type=…
+  const qIdx = url.indexOf('?');
+  const qs = new URLSearchParams(qIdx >= 0 ? url.slice(qIdx + 1).split('#')[0] : '');
+  if (qs.get('token_hash')) {
+    await confirmWithTokenHash(qs.get('token_hash'), qs.get('type') || 'signup');
+    return;
+  }
+  // Legacy: emiti://…#access_token=… (correos enviados antes del cambio de templates)
   const hash = url.split('#')[1] || '';
   const params = new URLSearchParams(hash);
   const errDesc = params.get('error_description');
@@ -1372,13 +1395,12 @@ async function authRecovery() {
   if (!email) { showAuthErr('Escribe tu correo electrónico'); return; }
   const btn = document.getElementById('btn-recovery');
   btn.textContent = 'Enviando…'; btn.classList.add('auth-loading');
-  // En nativo el link del correo abre la app vía emiti:// (appUrlOpen); en web
-  // aterriza en producción con el fragmento para supabase-js. Con path (/reset)
-  // a propósito: el glob emiti://** del allow list no matchea la raíz sin path.
-  const redirectTo = window.Capacitor?.isNativePlatform()
-    ? 'emiti://reset'
-    : 'https://emiti-app.vercel.app';
-  const { error } = await supa.auth.resetPasswordForEmail(email, { redirectTo });
+  // redirectTo es inerte desde que los templates enlazan directo con
+  // {{ .TokenHash }} (Universal Links); solo aplicaría si se restaurara
+  // {{ .ConfirmationURL }} en el template.
+  const { error } = await supa.auth.resetPasswordForEmail(email, {
+    redirectTo: 'https://emiti-app.vercel.app'
+  });
   btn.textContent = 'Enviar enlace'; btn.classList.remove('auth-loading');
   if (error) { showAuthErr(error.message); return; }
   // Mismo patrón que signup: volver al login con banner de "revisa tu correo".
@@ -3300,6 +3322,16 @@ window.onload = async () => {
       updatePlanBar();
     }
   });
+
+  // Link directo de email en web: /auth/confirm?token_hash=…&type=…
+  // (el rewrite de vercel.json sirve index.html en esa ruta)
+  const qp = new URLSearchParams(location.search);
+  const tokenHash = qp.get('token_hash');
+  if (tokenHash) {
+    const linkType = qp.get('type') || 'signup';
+    history.replaceState({}, '', '/');  // no dejar el token en la URL/historial
+    await confirmWithTokenHash(tokenHash, linkType);
+  }
 
   // getSession() como respaldo — cubre casos donde INITIAL_SESSION no se dispara
   try {
