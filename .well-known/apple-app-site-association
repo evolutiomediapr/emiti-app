@@ -1,0 +1,7 @@
+{
+  "applinks": {
+    "details": [
+      { "appIDs": ["6PC69YK3XH.app.emiti.app"], "components": [{ "/": "/auth/*" }] }
+    ]
+  }
+}

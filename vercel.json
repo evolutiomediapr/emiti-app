@@ -1,8 +1,24 @@
 {
+  "redirects": [
+    {
+      "source": "/auth/:path*",
+      "has": [{ "type": "host", "value": "app.emiti.app" }],
+      "destination": "https://emiti-app.vercel.app/auth/:path*",
+      "statusCode": 307
+    }
+  ],
   "rewrites": [
-    { "source": "/invoice/:id", "destination": "/invoice.html" }
+    { "source": "/invoice/:id", "destination": "/invoice.html" },
+    { "source": "/auth/confirm", "destination": "/index.html" }
   ],
   "headers": [
+    {
+      "source": "/.well-known/apple-app-site-association",
+      "headers": [
+        { "key": "Content-Type", "value": "application/json" },
+        { "key": "Cache-Control", "value": "public, max-age=3600" }
+      ]
+    },
     {
       "source": "/invoice.html",
       "headers": [
