@@ -987,11 +987,85 @@ table.pt tr:last-child td{border-bottom:none}
 
 <script>
 // ── STATE ──
-let B = JSON.parse(localStorage.getItem('fpr4_biz') || 'null');
-let INV = JSON.parse(localStorage.getItem('fpr4_inv') || '[]');
-let LOGO = localStorage.getItem('fpr4_logo') || null;
-let BIZ_SIG = localStorage.getItem('fpr4_bizsig') || null;
-let PAYMENTS = JSON.parse(localStorage.getItem('fpr4_pay') || '{}');
+// El estado del usuario NO se carga al parsear el script: en un dispositivo
+// compartido las claves viven namespaced por userId y no se sabe quién es el
+// usuario hasta que hay sesión. loadUserState() las carga en cada entrada a la app.
+let B = null;
+let INV = [];
+let LOGO = null;
+let BIZ_SIG = null;
+let PAYMENTS = {};
+
+// ── STORAGE POR USUARIO ──
+// Claves con datos del usuario → namespaced por userId (evita que en un
+// dispositivo compartido el usuario B vea o sincronice los datos locales de A).
+// remind_days y usage son preferencias del dispositivo y quedan sin scope.
+const USER_SCOPED_KEYS = ['fpr4_biz','fpr4_bizsig','fpr4_inv','fpr4_logo','fpr4_pay','fpr4_pro'];
+let STORAGE_UID = null;
+let STATE_LOADED = false; // distingue "sin cargar" de "cargado sin scope" (uid null)
+function skey(key) {
+  return STORAGE_UID && USER_SCOPED_KEYS.includes(key) ? key + '_' + STORAGE_UID : key;
+}
+
+async function loadUserState(uid) {
+  if (STATE_LOADED && STORAGE_UID === uid) return;
+  if (STATE_LOADED && STORAGE_UID !== uid) {
+    // Cambio de usuario en la misma página (p.ej. sesión expirada de A y login
+    // de B): recargar garantiza cero estado residual de A en memoria o en el DOM.
+    window.location.reload();
+    return new Promise(() => {});
+  }
+  STORAGE_UID = uid;
+  STATE_LOADED = true;
+  if (uid && !localStorage.getItem('fpr4_ns_' + uid)) {
+    const result = await migrateLegacyState(uid);
+    if (result !== 'defer') localStorage.setItem('fpr4_ns_' + uid, '1');
+  }
+  B = JSON.parse(localStorage.getItem(skey('fpr4_biz')) || 'null');
+  INV = JSON.parse(localStorage.getItem(skey('fpr4_inv')) || '[]');
+  LOGO = localStorage.getItem(skey('fpr4_logo')) || null;
+  BIZ_SIG = localStorage.getItem(skey('fpr4_bizsig')) || null;
+  PAYMENTS = JSON.parse(localStorage.getItem(skey('fpr4_pay')) || '{}');
+}
+
+// Adopta las claves pre-namespacing al namespace de uid, verificando contra la
+// nube que los datos le pertenezcan. Devuelve 'done' o 'defer' (error de red:
+// reintentar en el próximo login — nunca adoptar a ciegas).
+async function migrateLegacyState(uid) {
+  const legacy = {};
+  USER_SCOPED_KEYS.forEach(k => { const v = localStorage.getItem(k); if (v !== null) legacy[k] = v; });
+  if (!Object.keys(legacy).length) return 'done';
+  try {
+    const inv = JSON.parse(legacy['fpr4_inv'] || '[]');
+    const synced = inv.filter(i => i.supaId).slice(0, 5);
+    if (synced.length) {
+      // OJO con la RLS: la política de SELECT pública aplica SOLO al rol anon
+      // (el visor); un usuario autenticado solo ve SUS filas, así que consultar
+      // con `supa` devolvería vacío para docs ajenos Y para docs propios
+      // borrados — ambiguo. Se verifica con un cliente sin sesión (rol anon,
+      // ve todas las filas) comparando el userId embebido en data.
+      const supaAnon = supabase.createClient(SUPA_URL, SUPA_ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+      const { data, error } = await supaAnon.from('invoices').select('id,data').in('id', synced.map(i => i.supaId));
+      if (error) throw new Error(error.message);
+      const owners = new Set();
+      (data || []).forEach(r => { try { const o = JSON.parse(r.data)?.inv?.userId; if (o) owners.add(o); } catch(e){} });
+      if (owners.size && !owners.has(uid)) {
+        // Datos de otro usuario: no adoptar y dejarlos para su dueño real.
+        console.log('[migración] datos legados pertenecen a otro usuario — no se adoptan');
+        return 'done';
+      }
+    }
+    // Dueño confirmado, o sin docs sincronizados (sin ancla en la nube no hay
+    // forma de verificar: se adopta — el caso dominante es dispositivo propio).
+    USER_SCOPED_KEYS.forEach(k => {
+      if (k in legacy) { localStorage.setItem(k + '_' + uid, legacy[k]); localStorage.removeItem(k); }
+    });
+    return 'done';
+  } catch (e) {
+    console.warn('[migración] verificación de dueño falló — se difiere:', e.message);
+    return 'defer';
+  }
+}
 let LN = 0;
 let DOC_TYPE = 'invoice';
 let CURRENT_INV = null;
@@ -1016,7 +1090,7 @@ function isProUser() {
   // No confiamos en fpr4_pro (localStorage editable a mano). Web/Stripe sí lo
   // mantiene como fallback.
   if (window.Capacitor?.isNativePlatform()) return false;
-  return localStorage.getItem('fpr4_pro') === 'true';
+  return localStorage.getItem(skey('fpr4_pro')) === 'true';
 }
 
 // Invoice templates. 'classic' is free; the rest require Pro.
@@ -1178,6 +1252,7 @@ async function authLogin() {
     console.log('[Auth] Perfil cargado, abriendo app…');
 
     hideAuthModal();
+    await loadUserState(data.user.id);
     if (B) { document.getElementById('splash').style.display = 'none'; document.getElementById('app').classList.add('on'); boot(); }
 
     // Sync en background — no bloquea la apertura de la app
@@ -1222,6 +1297,7 @@ async function authSignup() {
   CURRENT_USER = data.session.user;
   USER_PROFILE = { plan: 'free', invoices_this_month: 0, quotes_this_month: 0 };
   hideAuthModal();
+  await loadUserState(CURRENT_USER.id);
   syncAllInvToSupabase().catch(e => console.warn('[Signup] syncAllInvToSupabase error:', e));
   // Mostrar onboarding si es usuario nuevo
   if (!B) { /* splash ya visible */ } else { document.getElementById('splash').style.display = 'none'; document.getElementById('app').classList.add('on'); boot(); }
@@ -1331,6 +1407,7 @@ async function authSetNewPassword() {
   toast('Contraseña actualizada ✓');
   hideAuthModal();
   updateTopbarAuth();
+  await loadUserState(CURRENT_USER.id);
   if (B) { document.getElementById('splash').style.display = 'none'; document.getElementById('app').classList.add('on'); boot(); }
   loadProfile().catch(e => console.warn('[recovery] loadProfile:', e.message));
   syncAllInvToSupabase().catch(e => console.warn('[recovery] syncAllInvToSupabase error:', e));
@@ -1566,7 +1643,7 @@ async function deleteAccount() {
       // rearrancar con la sesión de un usuario que ya no existe.
       await supa.auth.signOut();
     }
-    ['fpr4_biz','fpr4_bizsig','fpr4_inv','fpr4_logo','fpr4_pay','fpr4_pro','fpr4_remind_days','fpr4_usage'].forEach(k => localStorage.removeItem(k));
+    [...USER_SCOPED_KEYS.map(skey), 'fpr4_ns_' + STORAGE_UID, 'fpr4_remind_days', 'fpr4_usage'].forEach(k => localStorage.removeItem(k));
     window.location.reload();
   } catch(e) {
     toast('Error al eliminar cuenta: ' + e.message);
@@ -1578,7 +1655,7 @@ async function deleteAccount() {
 function handleLogo(e) {
   const f = e.target.files[0]; if (!f) return;
   const r = new FileReader();
-  r.onload = ev => { LOGO = ev.target.result; localStorage.setItem('fpr4_logo', LOGO); syncLogo(); toast('Logo guardado ✓'); };
+  r.onload = ev => { LOGO = ev.target.result; localStorage.setItem(skey('fpr4_logo'), LOGO); syncLogo(); toast('Logo guardado ✓'); };
   r.readAsDataURL(f);
 }
 function syncLogo() {
@@ -1627,20 +1704,20 @@ function canvasToData(id) {
 function saveBizSig() {
   const data = canvasToData('bizSigCanvas');
   if (!data) { toast('Dibuja tu firma primero'); return; }
-  BIZ_SIG = data; localStorage.setItem('fpr4_bizsig', BIZ_SIG);
+  BIZ_SIG = data; localStorage.setItem(skey('fpr4_bizsig'), BIZ_SIG);
   syncBizSig(); toast('Firma guardada ✓');
 }
 
 function saveBizSigFrom(canvasId) {
   const data = canvasToData(canvasId);
   if (!data) { toast('Dibuja tu firma primero'); return; }
-  BIZ_SIG = data; localStorage.setItem('fpr4_bizsig', BIZ_SIG);
+  BIZ_SIG = data; localStorage.setItem(skey('fpr4_bizsig'), BIZ_SIG);
   syncBizSig(); toast('Firma guardada ✓');
 }
 
 function clearBizSig() {
   if (!confirm('¿Eliminar tu firma guardada?')) return;
-  BIZ_SIG = null; localStorage.removeItem('fpr4_bizsig'); syncBizSig();
+  BIZ_SIG = null; localStorage.removeItem(skey('fpr4_bizsig')); syncBizSig();
 }
 
 function syncBizSig() {
@@ -1789,7 +1866,7 @@ function finish() {
   const own = document.getElementById('ob-owner').value.trim();
   if (!biz || !own) { toast('Escribe el nombre del negocio y el tuyo'); return; }
   B = { biz, owner: own, phone: document.getElementById('ob-phone').value.trim(), town: document.getElementById('ob-town').value.trim() };
-  localStorage.setItem('fpr4_biz', JSON.stringify(B));
+  localStorage.setItem(skey('fpr4_biz'), JSON.stringify(B));
   document.getElementById('splash').classList.add('out');
   setTimeout(() => { document.getElementById('splash').style.display='none'; document.getElementById('app').classList.add('on'); boot(); updatePlanBar(); updateTopbarAuth(); }, 380);
 }
@@ -2073,7 +2150,7 @@ function savePayments() {
     paypal: document.getElementById('set-paypal').value.trim(),
     ath: document.getElementById('set-ath').value.trim()
   };
-  localStorage.setItem('fpr4_pay', JSON.stringify(PAYMENTS));
+  localStorage.setItem(skey('fpr4_pay'), JSON.stringify(PAYMENTS));
   toast('Métodos de pago guardados ✓');
 }
 
@@ -2385,7 +2462,7 @@ function pactTogglePaid() {
   const i = INV.find(x=>x.id===id);
   if (i && i.status!=='paid' && document.getElementById('previewModal').classList.contains('open')) showPrev(i);
 }
-function save(){localStorage.setItem('fpr4_inv',JSON.stringify(INV));}
+function save(){localStorage.setItem(skey('fpr4_inv'),JSON.stringify(INV));}
 
 // Re-sincroniza todas las facturas del localStorage a la cuenta activa (post-login)
 async function syncAllInvToSupabase() {
@@ -2815,7 +2892,7 @@ function selectTemplateColor(hex) {
   if (!B) return;
   if (!isProUser()) { document.getElementById('upgradeModal').classList.add('open'); return; }
   B.templateColor = hex || null;
-  localStorage.setItem('fpr4_biz', JSON.stringify(B));
+  localStorage.setItem(skey('fpr4_biz'), JSON.stringify(B));
   renderTemplatePicker();
   if (CURRENT_INV) refreshPreview(CURRENT_INV);
   toast(hex ? 'Color aplicado ✓' : 'Color por defecto ✓');
@@ -2829,13 +2906,13 @@ function selectTemplate(id) {
     return;
   }
   B.template = id;
-  localStorage.setItem('fpr4_biz', JSON.stringify(B));
+  localStorage.setItem(skey('fpr4_biz'), JSON.stringify(B));
   renderTemplatePicker();
   if (CURRENT_INV) refreshPreview(CURRENT_INV);
   toast('Diseño aplicado: ' + tpl.name + ' ✓');
 }
 
-function ed(key,label){ const v=prompt(label+':',B[key]||''); if(v!==null){B[key]=v.trim();localStorage.setItem('fpr4_biz',JSON.stringify(B));fillSettings();setGreet();} }
+function ed(key,label){ const v=prompt(label+':',B[key]||''); if(v!==null){B[key]=v.trim();localStorage.setItem(skey('fpr4_biz'),JSON.stringify(B));fillSettings();setGreet();} }
 
 function setGreet() {
   if(!B)return;
@@ -3145,7 +3222,8 @@ window.onload = async () => {
   }
 
   if (!supa) {
-    // Sin Supabase configurado — modo solo localStorage
+    // Sin Supabase configurado — modo solo localStorage (claves legadas sin scope)
+    await loadUserState(null);
     if (B) { document.getElementById('splash').style.display='none'; document.getElementById('app').classList.add('on'); boot(); }
     return;
   }
@@ -3211,6 +3289,7 @@ window.onload = async () => {
       // Usuario autenticado real — ocultar login y abrir app
       hideAuthModal();
       updateTopbarAuth();
+      await loadUserState(CURRENT_USER.id);
       bootOnce();
       loadProfile().catch(e => console.warn('[onAuthStateChange] loadProfile:', e.message));
       loadServices().catch(e => console.warn('[onAuthStateChange] loadServices:', e.message));
@@ -3235,6 +3314,7 @@ window.onload = async () => {
         } else {
           // Solo abrir la app si el usuario se autenticó explícitamente
           hideAuthModal();
+          await loadUserState(CURRENT_USER.id);
           bootOnce();
           loadProfile().catch(e => console.warn('[getSession] loadProfile:', e.message));
         }
@@ -3299,7 +3379,7 @@ async function pickLogoFromGallery() {
     const f = result?.files?.[0];
     if (!f) return;
     LOGO = 'data:' + f.mimeType + ';base64,' + f.data;
-    localStorage.setItem('fpr4_logo', LOGO);
+    localStorage.setItem(skey('fpr4_logo'), LOGO);
     syncLogo();
     toast('Logo guardado ✓');
   } catch (_) {}
@@ -3313,7 +3393,7 @@ async function pickLogoFromFiles() {
     const f = result?.files?.[0];
     if (!f) return;
     LOGO = 'data:' + f.mimeType + ';base64,' + f.data;
-    localStorage.setItem('fpr4_logo', LOGO);
+    localStorage.setItem(skey('fpr4_logo'), LOGO);
     syncLogo();
     toast('Logo guardado ✓');
   } catch (_) {}
