@@ -1197,7 +1197,12 @@ async function authSignup() {
   if (pass.length < 6) { showAuthErr('La contraseña debe tener al menos 6 caracteres'); return; }
   const btn = document.getElementById('btn-signup');
   btn.textContent = 'Creando cuenta…'; btn.classList.add('auth-loading');
-  const { data, error } = await supa.auth.signUp({ email, password: pass });
+  // En nativo, confirmar desde el iPhone abre la app ya logueada (deep link);
+  // en web el link aterriza en producción.
+  const emailRedirectTo = window.Capacitor?.isNativePlatform()
+    ? 'emiti://confirmed'
+    : 'https://emiti-app.vercel.app';
+  const { data, error } = await supa.auth.signUp({ email, password: pass, options: { emailRedirectTo } });
   btn.textContent = 'Crear cuenta gratis'; btn.classList.remove('auth-loading');
   if (error) { showAuthErr(error.message); return; }
 
@@ -1252,6 +1257,32 @@ async function authResendConfirmation() {
   setTimeout(() => { RESEND_COOLDOWN = false; if (link) link.style.opacity = '1'; }, 60000);
 }
 
+// ── DEEP LINKS (iOS) ──
+// emiti://…#access_token=…&refresh_token=…&type=recovery|signup
+// A diferencia de web, el fragmento nos llega a nosotros (supabase-js solo
+// procesa el hash de window.location), así que la sesión se establece a mano
+// con setSession.
+async function handleDeepLink(url) {
+  const hash = url.split('#')[1] || '';
+  const params = new URLSearchParams(hash);
+  const errDesc = params.get('error_description');
+  if (errDesc) {
+    // Link expirado/inválido — mismo trato que el hash de error en web
+    showAuthModal();
+    showAuthErr(decodeURIComponent(errDesc.replace(/\+/g, ' ')));
+    return;
+  }
+  const access_token = params.get('access_token');
+  const refresh_token = params.get('refresh_token');
+  if (!access_token || !refresh_token) return;
+  // ORDEN CRÍTICO: el flag ANTES de setSession — setSession dispara SIGNED_IN
+  // y el guard existente (RECOVERY_MODE && !anon) es quien muestra el form de
+  // nueva contraseña en vez de abrir la app. type=signup (confirmación) sigue
+  // el SIGNED_IN normal: la app abre ya logueada.
+  if (params.get('type') === 'recovery') RECOVERY_MODE = true;
+  await supa.auth.setSession({ access_token, refresh_token });
+}
+
 // ── PASSWORD RECOVERY ──
 function showRecoveryForm() {
   // Precargar el correo si ya lo escribió en el login
@@ -1265,11 +1296,13 @@ async function authRecovery() {
   if (!email) { showAuthErr('Escribe tu correo electrónico'); return; }
   const btn = document.getElementById('btn-recovery');
   btn.textContent = 'Enviando…'; btn.classList.add('auth-loading');
-  const { error } = await supa.auth.resetPasswordForEmail(email, {
-    // Web por ahora; cuando exista el deep-link emiti:// (build de iOS) se
-    // decidirá por plataforma.
-    redirectTo: 'https://emiti-app.vercel.app'
-  });
+  // En nativo el link del correo abre la app vía emiti:// (appUrlOpen); en web
+  // aterriza en producción con el fragmento para supabase-js. Con path (/reset)
+  // a propósito: el glob emiti://** del allow list no matchea la raíz sin path.
+  const redirectTo = window.Capacitor?.isNativePlatform()
+    ? 'emiti://reset'
+    : 'https://emiti-app.vercel.app';
+  const { error } = await supa.auth.resetPasswordForEmail(email, { redirectTo });
   btn.textContent = 'Enviar enlace'; btn.classList.remove('auth-loading');
   if (error) { showAuthErr(error.message); return; }
   // Mismo patrón que signup: volver al login con banner de "revisa tu correo".
@@ -3135,6 +3168,14 @@ window.onload = async () => {
     showAuthModal();
     showAuthErr(decodeURIComponent(hashErr[1].replace(/\+/g, ' ')));
     history.replaceState({}, '', location.pathname + location.search);
+  }
+
+  // Deep links emiti:// (solo nativo): appUrlOpen cubre app viva/en background;
+  // getLaunchUrl cubre cold start (app lanzada POR el link, listener aún no
+  // registrado cuando iOS entregó la URL).
+  if (window.Capacitor?.isNativePlatform() && Capacitor.Plugins?.App) {
+    Capacitor.Plugins.App.addListener('appUrlOpen', ({ url }) => handleDeepLink(url));
+    Capacitor.Plugins.App.getLaunchUrl().then(r => { if (r?.url) handleDeepLink(r.url); }).catch(() => {});
   }
 
   // Escuchar cambios de sesión (refresh de token, navegación de vuelta, bfcache, etc.)
