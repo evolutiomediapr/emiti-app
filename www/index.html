@@ -3158,8 +3158,12 @@ window.onload = async () => {
         return;
       }
       if (CURRENT_USER.is_anonymous) {
-        // Sesión anónima — solo registrar el usuario para sync, NO abrir la app ni ocultar el login
-        console.log('[auth] sesión anónima detectada — mantener modal de login visible');
+        // Sesión anónima legada (pre-v1.5): purgarla — ya no se crean y los
+        // usuarios anónimos se eliminaron de la BD. setTimeout evita el
+        // deadlock de llamar auth.* dentro del callback de onAuthStateChange.
+        console.log('[auth] sesión anónima legada — cerrándola');
+        CURRENT_USER = null;
+        setTimeout(() => supa.auth.signOut().catch(e => console.warn('[auth] signOut anon:', e.message)), 0);
         updateTopbarAuth();
         return;
       }
@@ -3194,19 +3198,16 @@ window.onload = async () => {
           loadProfile().catch(e => console.warn('[getSession] loadProfile:', e.message));
         }
       } else {
-        console.log('[auth] getSession devolvió sesión anónima — modal de login permanece visible');
+        // Sesión anónima legada (pre-v1.5): purgarla para que el dispositivo
+        // deje de refrescar tokens de usuarios ya eliminados de la BD.
+        console.log('[auth] sesión anónima legada — cerrándola');
+        CURRENT_USER = null;
+        await supa.auth.signOut().catch(e => console.warn('[auth] signOut anon:', e.message));
         updateTopbarAuth();
       }
-    } else {
-      // Sin sesión — crear sesión anónima en background para que el sync funcione
-      // pero NO abrir la app ni ocultar el login
-      const storedToken = localStorage.getItem('sb-gtxxokmrkesyljqodtrr-auth-token');
-      if (!storedToken) {
-        const { data: anonData } = await supa.auth.signInAnonymously();
-        if (anonData?.user) CURRENT_USER = anonData.user;
-        console.log('[auth] sesión anónima creada en background — usuario debe hacer login para acceder');
-      }
     }
+    // Sin sesión: nada que hacer — la app es login-first y el modal ya está
+    // visible. El anonymous sign-in se eliminó en v1.5.
   } catch (e) {
     console.warn('[window.onload] getSession error:', e.message);
   }
