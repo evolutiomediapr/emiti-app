@@ -921,6 +921,7 @@ table.pt tr:last-child td{border-bottom:none}
     <div id="auth-login-form">
       <div class="f"><label>Correo electrónico</label><input type="email" id="auth-email" placeholder="correo@ejemplo.com" autocomplete="email"></div>
       <div class="f"><label>Contraseña</label><div class="pw-wrap"><input type="password" id="auth-pass" placeholder="••••••••" autocomplete="current-password"><button type="button" class="pw-eye" onclick="togglePw('auth-pass',this)" tabindex="-1"><svg id="eye-auth-pass" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
+      <div style="text-align:right;margin:-.3rem 0 .6rem"><a href="#" onclick="showRecoveryForm();return false" style="font-size:.75rem;color:var(--green);text-decoration:none">¿Olvidaste tu contraseña?</a></div>
       <button class="btn bg" style="width:100%;margin-top:.3rem" id="btn-login" onclick="authLogin()">Entrar</button>
     </div>
     <!-- SIGNUP -->
@@ -928,6 +929,19 @@ table.pt tr:last-child td{border-bottom:none}
       <div class="f"><label>Correo electrónico</label><input type="email" id="auth-email-s" placeholder="correo@ejemplo.com" autocomplete="email"></div>
       <div class="f"><label>Contraseña</label><div class="pw-wrap"><input type="password" id="auth-pass-s" placeholder="Mínimo 6 caracteres" autocomplete="new-password"><button type="button" class="pw-eye" onclick="togglePw('auth-pass-s',this)" tabindex="-1"><svg id="eye-auth-pass-s" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
       <button class="btn bg" style="width:100%;margin-top:.3rem" id="btn-signup" onclick="authSignup()">Crear cuenta gratis</button>
+    </div>
+    <!-- RECOVERY: pedir correo -->
+    <div id="auth-recovery-form" style="display:none">
+      <p style="font-size:.78rem;color:var(--mu);margin:0 0 .8rem;line-height:1.5">Escribe tu correo y te enviaremos un enlace para crear una nueva contraseña.</p>
+      <div class="f"><label>Correo electrónico</label><input type="email" id="auth-email-r" placeholder="correo@ejemplo.com" autocomplete="email"></div>
+      <button class="btn bg" style="width:100%;margin-top:.3rem" id="btn-recovery" onclick="authRecovery()">Enviar enlace</button>
+      <div style="text-align:center;margin-top:.8rem"><a href="#" onclick="switchAuthTab('login');return false" style="font-size:.75rem;color:var(--mu)">Volver a iniciar sesión</a></div>
+    </div>
+    <!-- RECOVERY: nueva contraseña (se llega desde el link del correo) -->
+    <div id="auth-newpass-form" style="display:none">
+      <p style="font-size:.78rem;color:var(--mu);margin:0 0 .8rem;line-height:1.5">Crea tu nueva contraseña para continuar.</p>
+      <div class="f"><label>Nueva contraseña</label><div class="pw-wrap"><input type="password" id="auth-pass-n" placeholder="Mínimo 6 caracteres" autocomplete="new-password"><button type="button" class="pw-eye" onclick="togglePw('auth-pass-n',this)" tabindex="-1"><svg id="eye-auth-pass-n" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
+      <button class="btn bg" style="width:100%;margin-top:.3rem" id="btn-newpass" onclick="authSetNewPassword()">Guardar contraseña</button>
     </div>
     <p style="font-size:.72rem;color:var(--mu);text-align:center;margin-top:.9rem;line-height:1.5">Plan Free incluye 3 facturas y 3 cotizaciones/mes.<br>Sin tarjeta de crédito requerida.</p>
   </div>
@@ -1058,6 +1072,10 @@ const SUPA_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFz
 const FREE_LIMIT = 3;
 let supa = null;
 let CURRENT_USER = null;
+// true si la página cargó desde un link de recovery (#…&type=recovery): retiene
+// al usuario en el form de nueva contraseña en vez de abrir la app, porque el
+// SIGNED_IN de esa sesión llega antes que el evento PASSWORD_RECOVERY.
+let RECOVERY_MODE = /[#&]type=recovery/.test(location.hash);
 let USER_PROFILE = { plan: 'free', invoices_this_month: 0, quotes_this_month: 0 };
 let SVCS = [];
 
@@ -1079,11 +1097,18 @@ try {
 } catch(e) { console.warn('Supabase no configurado:', e.message); }
 
 // ── AUTH FUNCTIONS ──
+// tab: 'login' | 'signup' | 'recovery' | 'newpass'. Los dos últimos no son tabs
+// visibles: recovery mantiene las tabs para poder volver; newpass las oculta
+// porque hay una sesión de recovery activa y salir a mitad deja estado ambiguo.
 function switchAuthTab(tab) {
+  ['login','signup','recovery','newpass'].forEach(f => {
+    const el = document.getElementById('auth-' + f + '-form');
+    if (el) el.style.display = f === tab ? 'block' : 'none';
+  });
   document.getElementById('tab-login').classList.toggle('active', tab === 'login');
   document.getElementById('tab-signup').classList.toggle('active', tab === 'signup');
-  document.getElementById('auth-login-form').style.display = tab === 'login' ? 'block' : 'none';
-  document.getElementById('auth-signup-form').style.display = tab === 'signup' ? 'block' : 'none';
+  const tabs = document.querySelector('.auth-tabs');
+  if (tabs) tabs.style.display = tab === 'newpass' ? 'none' : 'flex';
   document.getElementById('auth-err').classList.remove('show');
 }
 
@@ -1193,6 +1218,57 @@ async function authSignup() {
   if (!B) { /* splash ya visible */ } else { document.getElementById('splash').style.display = 'none'; document.getElementById('app').classList.add('on'); boot(); }
 }
 
+// ── PASSWORD RECOVERY ──
+function showRecoveryForm() {
+  // Precargar el correo si ya lo escribió en el login
+  const email = document.getElementById('auth-email').value.trim();
+  if (email) document.getElementById('auth-email-r').value = email;
+  switchAuthTab('recovery');
+}
+
+async function authRecovery() {
+  const email = document.getElementById('auth-email-r').value.trim();
+  if (!email) { showAuthErr('Escribe tu correo electrónico'); return; }
+  const btn = document.getElementById('btn-recovery');
+  btn.textContent = 'Enviando…'; btn.classList.add('auth-loading');
+  const { error } = await supa.auth.resetPasswordForEmail(email, {
+    // Web por ahora; cuando exista el deep-link emiti:// (build de iOS) se
+    // decidirá por plataforma.
+    redirectTo: 'https://emiti-app.vercel.app'
+  });
+  btn.textContent = 'Enviar enlace'; btn.classList.remove('auth-loading');
+  if (error) { showAuthErr(error.message); return; }
+  // Mismo patrón que signup: volver al login con banner de "revisa tu correo".
+  // GoTrue responde éxito aunque el correo no exista (anti-enumeración).
+  switchAuthTab('login');
+  document.getElementById('auth-email').value = email;
+  const ctx = document.getElementById('auth-context');
+  const txt = document.getElementById('auth-context-text');
+  if (ctx && txt) {
+    txt.innerHTML = `Te enviamos un enlace de recuperación a <b>${email}</b>. Ábrelo para crear una nueva contraseña.`;
+    ctx.classList.add('show');
+  }
+}
+
+async function authSetNewPassword() {
+  const pass = document.getElementById('auth-pass-n').value;
+  if (pass.length < 6) { showAuthErr('La contraseña debe tener al menos 6 caracteres'); return; }
+  const btn = document.getElementById('btn-newpass');
+  btn.textContent = 'Guardando…'; btn.classList.add('auth-loading');
+  const { data, error } = await supa.auth.updateUser({ password: pass });
+  btn.textContent = 'Guardar contraseña'; btn.classList.remove('auth-loading');
+  if (error) { showAuthErr(error.message); return; }
+  // La sesión del link de recovery ya está activa: entrar directo a la app
+  RECOVERY_MODE = false;
+  CURRENT_USER = data.user;
+  toast('Contraseña actualizada ✓');
+  hideAuthModal();
+  updateTopbarAuth();
+  if (B) { document.getElementById('splash').style.display = 'none'; document.getElementById('app').classList.add('on'); boot(); }
+  loadProfile().catch(e => console.warn('[recovery] loadProfile:', e.message));
+  syncAllInvToSupabase().catch(e => console.warn('[recovery] syncAllInvToSupabase error:', e));
+}
+
 function togglePw(inputId, btn) {
   const input = document.getElementById(inputId);
   const isHidden = input.type === 'password';
@@ -1213,6 +1289,10 @@ function translateAuthError(msg) {
     return 'Este correo ya tiene una cuenta. Inicia sesión.';
   if (m.includes('password should be at least'))
     return 'La contraseña debe tener al menos 6 caracteres';
+  if (m.includes('is invalid or has expired') || m.includes('otp_expired'))
+    return 'El enlace expiró o ya fue usado. Pide uno nuevo con "¿Olvidaste tu contraseña?".';
+  if (m.includes('different from the old password'))
+    return 'La nueva contraseña debe ser diferente a la anterior.';
   return msg;
 }
 
@@ -1398,9 +1478,16 @@ async function deleteAccount() {
   btn.textContent = 'Eliminando…'; btn.classList.add('auth-loading');
   try {
     if (supa && CURRENT_USER && !CURRENT_USER.is_anonymous) {
-      await supa.from('invoices').delete().eq('user_id', CURRENT_USER.id);
-      await supa.from('profiles').delete().eq('id', CURRENT_USER.id);
-      await supa.rpc('delete_user');
+      // Todo el borrado (invoices, services, profile, auth.users) vive en la RPC
+      // delete_user (SECURITY DEFINER): el dueño de invoices está en
+      // data->'inv'->>'userId' (no hay columna user_id) y RLS no tiene política
+      // DELETE, así que borrar desde el cliente es imposible. OJO: supabase-js
+      // no lanza en error — hay que chequear { error } o el fallo pasa silencioso.
+      const { error } = await supa.rpc('delete_user');
+      if (error) throw error;
+      // El JWT local seguiría siendo válido hasta expirar: cerrar sesión para no
+      // rearrancar con la sesión de un usuario que ya no existe.
+      await supa.auth.signOut();
     }
     ['fpr4_biz','fpr4_bizsig','fpr4_inv','fpr4_logo','fpr4_pay','fpr4_pro','fpr4_remind_days','fpr4_usage'].forEach(k => localStorage.removeItem(k));
     window.location.reload();
@@ -2997,10 +3084,35 @@ window.onload = async () => {
     }
   }
 
+  // Link de email inválido/expirado: GoTrue redirige con #error=…&error_description=…
+  // en vez de tokens. Mostrar el mensaje (traducido) en el modal y limpiar el hash.
+  const hashErr = location.hash.match(/[#&]error_description=([^&]+)/);
+  if (hashErr) {
+    showAuthModal();
+    showAuthErr(decodeURIComponent(hashErr[1].replace(/\+/g, ' ')));
+    history.replaceState({}, '', location.pathname + location.search);
+  }
+
   // Escuchar cambios de sesión (refresh de token, navegación de vuelta, bfcache, etc.)
   supa.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'PASSWORD_RECOVERY') {
+      // Sesión creada por el link de recovery: NO abrir la app — retener al
+      // usuario en el form de nueva contraseña hasta que la cambie.
+      if (session) CURRENT_USER = session.user;
+      RECOVERY_MODE = true;
+      showAuthModal();
+      switchAuthTab('newpass');
+      return;
+    }
     if (session && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED')) {
       CURRENT_USER = session.user;
+      if (RECOVERY_MODE && !CURRENT_USER.is_anonymous) {
+        // El SIGNED_IN de la sesión de recovery llega antes que el evento
+        // PASSWORD_RECOVERY: mismo trato, sin abrir la app.
+        showAuthModal();
+        switchAuthTab('newpass');
+        return;
+      }
       if (CURRENT_USER.is_anonymous) {
         // Sesión anónima — solo registrar el usuario para sync, NO abrir la app ni ocultar el login
         console.log('[auth] sesión anónima detectada — mantener modal de login visible');
@@ -3027,10 +3139,16 @@ window.onload = async () => {
     if (session) {
       CURRENT_USER = session.user;
       if (!CURRENT_USER.is_anonymous) {
-        // Solo abrir la app si el usuario se autenticó explícitamente
-        hideAuthModal();
-        bootOnce();
-        loadProfile().catch(e => console.warn('[getSession] loadProfile:', e.message));
+        if (RECOVERY_MODE) {
+          // Sesión del link de recovery: pedir la nueva contraseña, no abrir la app
+          showAuthModal();
+          switchAuthTab('newpass');
+        } else {
+          // Solo abrir la app si el usuario se autenticó explícitamente
+          hideAuthModal();
+          bootOnce();
+          loadProfile().catch(e => console.warn('[getSession] loadProfile:', e.message));
+        }
       } else {
         console.log('[auth] getSession devolvió sesión anónima — modal de login permanece visible');
         updateTopbarAuth();
