@@ -3,6 +3,7 @@
   "appName": "Emiti",
   "webDir": "www",
   "packageClassList": [
+    "AppPlugin",
     "FilePickerPlugin",
     "EmitIAPPlugin",
     "PdfGeneratorPlugin"

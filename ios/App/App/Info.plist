@@ -49,5 +49,16 @@
 	<true/>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Emiti necesita acceso a tu galería para subir el logo de tu negocio.</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>app.emiti.app</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>emiti</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>
