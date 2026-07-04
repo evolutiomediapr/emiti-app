@@ -764,6 +764,7 @@ table.pt tr:last-child td{border-bottom:none}
     </div>
 
     <div style="text-align:center;padding:1.3rem 0 .4rem">
+      <button onclick="logout()" style="background:none;border:none;font-size:.78rem;color:var(--mu);cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;display:block;margin:0 auto .9rem">Cerrar sesión</button>
       <button onclick="document.getElementById('deleteModal').classList.add('open')" style="background:none;border:none;font-size:.7rem;color:var(--red);opacity:.6;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif">Eliminar cuenta</button>
     </div>
     <div style="text-align:center;padding:.2rem 0 1.3rem;font-size:.72rem;color:var(--mu)">Emiti v0.1 · emiti.app</div>
@@ -1153,7 +1154,15 @@ async function authLogin() {
     console.log('[Auth] signInWithPassword completó', { error: error?.message });
 
     resetBtn();
-    if (error) { showAuthErr(error.message); return; }
+    if (error) {
+      if (/email not confirmed/i.test(error.message)) {
+        showConfirmEmailBanner(email, `Tu correo <b>${email}</b> aún no está confirmado. ` +
+          `Busca el correo de confirmación en tu bandeja (revisa spam).`);
+        return;
+      }
+      showAuthErr(error.message);
+      return;
+    }
 
     console.log('[Auth] Login OK, cargando perfil…');
     CURRENT_USER = data.user;
@@ -1199,13 +1208,8 @@ async function authSignup() {
   if (!data.session) {
     switchAuthTab('login');
     document.getElementById('auth-email').value = email;
-    const ctx = document.getElementById('auth-context');
-    const txt = document.getElementById('auth-context-text');
-    if (ctx && txt) {
-      txt.innerHTML = `Te enviamos un correo de confirmación a <b>${email}</b>. ` +
-        `Ábrelo, haz clic en el enlace y luego <b>inicia sesión aquí</b> para continuar.`;
-      ctx.classList.add('show');
-    }
+    showConfirmEmailBanner(email, `Te enviamos un correo de confirmación a <b>${email}</b>. ` +
+      `Ábrelo, haz clic en el enlace y luego <b>inicia sesión aquí</b> para continuar.`);
     return;
   }
 
@@ -1216,6 +1220,36 @@ async function authSignup() {
   syncAllInvToSupabase().catch(e => console.warn('[Signup] syncAllInvToSupabase error:', e));
   // Mostrar onboarding si es usuario nuevo
   if (!B) { /* splash ya visible */ } else { document.getElementById('splash').style.display = 'none'; document.getElementById('app').classList.add('on'); boot(); }
+}
+
+// ── CONFIRMACIÓN DE EMAIL ──
+// Email pendiente de confirmar (para el link "Reenviar correo" del banner)
+let PENDING_CONFIRM_EMAIL = null;
+let RESEND_COOLDOWN = false;
+
+function showConfirmEmailBanner(email, msg) {
+  PENDING_CONFIRM_EMAIL = email;
+  const ctx = document.getElementById('auth-context');
+  const txt = document.getElementById('auth-context-text');
+  if (!ctx || !txt) return;
+  txt.innerHTML = msg + ` ¿No te llegó? <a href="#" id="resend-link" onclick="authResendConfirmation();return false" style="color:inherit;font-weight:700;text-decoration:underline">Reenviar correo</a>`;
+  ctx.classList.add('show');
+}
+
+async function authResendConfirmation() {
+  if (!PENDING_CONFIRM_EMAIL || RESEND_COOLDOWN) return;
+  const link = document.getElementById('resend-link');
+  RESEND_COOLDOWN = true;
+  if (link) link.style.opacity = '.4';
+  const { error } = await supa.auth.resend({ type: 'signup', email: PENDING_CONFIRM_EMAIL });
+  if (error) {
+    showAuthErr(error.message);
+    RESEND_COOLDOWN = false; if (link) link.style.opacity = '1';
+    return;
+  }
+  toast('Correo reenviado ✓');
+  // Cooldown de 60s en UI; GoTrue además limita reenvíos por dirección
+  setTimeout(() => { RESEND_COOLDOWN = false; if (link) link.style.opacity = '1'; }, 60000);
 }
 
 // ── PASSWORD RECOVERY ──
@@ -1293,6 +1327,8 @@ function translateAuthError(msg) {
     return 'El enlace expiró o ya fue usado. Pide uno nuevo con "¿Olvidaste tu contraseña?".';
   if (m.includes('different from the old password'))
     return 'La nueva contraseña debe ser diferente a la anterior.';
+  if (m.includes('email not confirmed'))
+    return 'Tu correo aún no está confirmado. Revisa tu bandeja de entrada.';
   return msg;
 }
 
@@ -1473,6 +1509,14 @@ async function restoreIOSPurchases() {
 }
 
 // ── DELETE ACCOUNT ──
+async function logout() {
+  try { await supa?.auth.signOut(); } catch(e) { console.warn('[logout]', e.message); }
+  // Los datos locales (fpr4_*) se conservan a propósito: la app no tiene pull
+  // nube→local, así que borrarlos aquí sería perder los documentos del
+  // dispositivo. Al recargar sin sesión, el modal de login bloquea la app.
+  window.location.reload();
+}
+
 async function deleteAccount() {
   const btn = document.getElementById('btn-delete-confirm');
   btn.textContent = 'Eliminando…'; btn.classList.add('auth-loading');
