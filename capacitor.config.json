@@ -5,6 +5,7 @@
   "packageClassList": [
     "AppPlugin",
     "CAPBrowserPlugin",
+    "CAPCameraPlugin",
     "FilePickerPlugin",
     "EmitIAPPlugin",
     "PdfGeneratorPlugin",

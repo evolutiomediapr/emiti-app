@@ -469,6 +469,9 @@ table.pt tr:last-child td{border-bottom:none}
 .btn-social:active{transform:scale(.99)}
 .btn-social:disabled{opacity:.6;cursor:default}
 .btn-social.apple{background:#000;border-color:#000;color:#fff}
+.exp-cta{width:56px;height:56px;border-radius:50%;background:var(--green);color:#fff;font-size:1.8rem;font-weight:300;line-height:1;border:none;box-shadow:var(--shm);cursor:pointer;display:flex;align-items:center;justify-content:center;margin:1.1rem auto .55rem;transition:transform .12s}
+.exp-cta:active{transform:scale(.94)}
+.exp-cta-lbl{font-size:.82rem;font-weight:700;color:var(--green)}
 .auth-divider{display:flex;align-items:center;gap:.7rem;color:var(--mu);font-size:.72rem;font-weight:600;margin:.35rem 0 1rem}
 .auth-divider::before,.auth-divider::after{content:'';flex:1;height:1px;background:var(--bd)}
 .auth-context{display:none;align-items:flex-start;gap:.55rem;background:var(--gxl);border:1px solid rgba(26,122,74,.22);color:var(--ink2);border-radius:var(--rs);padding:.7rem .85rem;font-size:.8rem;line-height:1.45;margin-bottom:1rem}
@@ -926,13 +929,13 @@ table.pt tr:last-child td{border-bottom:none}
     <div class="f"><label>Comercio / Proveedor</label><input type="text" id="exp-merchant" placeholder="Ej: Home Depot"></div>
     <div class="two">
       <div class="f"><label>Total ($)</label><input type="number" id="exp-total" placeholder="0.00" min="0" step="0.01"></div>
-      <div class="f"><label>IVU ($, opcional)</label><input type="number" id="exp-tax" placeholder="0.00" min="0" step="0.01"></div>
+      <div class="f"><label>Impuestos ($, opcional)</label><input type="number" id="exp-tax" placeholder="0.00" min="0" step="0.01"></div>
     </div>
     <div class="two">
       <div class="f"><label>Fecha</label><input type="date" id="exp-date"></div>
       <div class="f"><label>Categoría</label><select id="exp-category"><option>Materiales</option><option>Transporte</option><option>Comidas</option><option>Herramientas</option><option>Oficina</option><option>Subcontratistas</option><option>Otros</option></select></div>
     </div>
-    <div class="f"><label>Recibo (opcional)</label><div id="exp-receipt-box"></div></div>
+    <div class="f"><label>Recibo (opcional)</label><div id="exp-receipt-box"></div><div id="exp-scan-status" style="display:none;font-size:.75rem;color:var(--green);font-weight:600;margin-top:.4rem">Leyendo recibo…</div></div>
     <div class="f"><label>Notas (opcional)</label><input type="text" id="exp-notes" placeholder="Detalle del gasto…" maxlength="200"></div>
     <input type="hidden" id="exp-editing-id">
     <div style="display:flex;gap:.5rem;margin-top:.5rem">
@@ -3167,7 +3170,7 @@ function renderGastos() {
   if (!EXPENSES.length) {
     summary.innerHTML = '';
     list.innerHTML = pro
-      ? `<div class="empty"><div class="ei">🧾</div><p>Registra tu primer gasto<br>con el botón de arriba.</p></div>`
+      ? `<div class="empty"><div class="ei">🧾</div><p>Controla los gastos de tu negocio.</p><button class="exp-cta" onclick="openExpenseEditor(null)" aria-label="Agregar Recibo de Gasto">+</button><div class="exp-cta-lbl">Agregar Recibo de Gasto</div></div>`
       : `<div class="empty"><div class="ei">🧾</div><p>Controla los gastos de tu negocio<br>con el plan Pro.</p><button class="btn bg bsm" style="margin-top:1rem" onclick="openExpenseUpsell()">Ver plan Pro</button></div>`;
     return;
   }
@@ -3340,13 +3343,46 @@ async function deleteReceiptFile(path) {
   delete RECEIPT_URL_CACHE[path];
 }
 
-// Nativo: reutiliza el sheet doble de v1.4 con scope 'receipt'. Web: input directo.
+// Nativo: reutiliza el sheet de v1.4 con scope 'receipt' + opción de cámara
+// (solo recibos). Web: input directo, sin cámara.
 function openReceiptSheet() {
   if (window.Capacitor && Capacitor.isNativePlatform()) {
     _photoSheetScope = 'receipt'; _photoSheetLid = null;
+    document.getElementById('photoSheetCameraBtn').style.display = 'block';
     document.getElementById('photoSourceSheet').style.display = 'flex';
   } else {
     addReceiptPhoto();
+  }
+}
+
+// Cámara nativa (@capacitor/camera → UIImagePickerController). NUNCA volver
+// al <input type="file"> del webview: su hoja nativa incluía "Take Photo" y
+// sin NSCameraUsageDescription iOS mataba la app (ver commit 8a1889e).
+// El purpose string ya está en Info.plist desde G3.
+async function captureReceiptPhoto() {
+  closePhotoSheet();
+  try {
+    const { Camera } = Capacitor.Plugins;
+    const photo = await Camera.getPhoto({
+      source: 'CAMERA',
+      resultType: 'base64',
+      quality: 90,
+      correctOrientation: true,
+      saveToGallery: false
+    });
+    if (!photo?.base64String) return;
+    const raw = base64ToBlob(photo.base64String, 'image/jpeg');
+    const { blob } = await compressToJpeg(raw);   // mismo pipeline v1.4
+    EXP_RECEIPT_BLOB = blob;
+    EXP_RECEIPT_REMOVED = false;
+    renderReceiptBox();
+    scanReceipt(blob);   // escaneo IA automático, sin botón intermedio
+  } catch (e) {
+    // Cancelar la cámara o negar el permiso no son errores para el usuario
+    if (!/cancel|denied/i.test(e.message || '')) {
+      console.warn('[gastos] cámara:', e.message);
+      toast('No se pudo tomar la foto');
+    }
   }
 }
 
@@ -3359,6 +3395,7 @@ async function addReceiptPhoto(source) {
     EXP_RECEIPT_BLOB = blob;
     EXP_RECEIPT_REMOVED = false;
     renderReceiptBox();
+    scanReceipt(blob);   // escaneo IA automático, sin botón intermedio
   } catch (e) {
     console.warn('[gastos] compresión:', e.message);
     toast('No se pudo procesar la imagen');
@@ -3393,7 +3430,61 @@ async function renderReceiptBox() {
          <button type="button" class="btn bo bsm" onclick="openReceiptSheet()">Cambiar</button>
          <button type="button" class="btn bsm" style="color:var(--red)" onclick="removeReceipt()">Quitar</button>
        </div>`
-    : `<button type="button" class="btn bo bsm" style="width:100%" onclick="openReceiptSheet()">🧾 Adjuntar foto del recibo</button>`;
+    : `<button type="button" class="btn bo bsm" style="width:100%;gap:.45rem" onclick="openReceiptSheet()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>Adjuntar foto del recibo</button>`;
+}
+
+// ── ESCANEO IA DEL RECIBO (G4) ──
+// Al capturar/elegir la foto se llama automáticamente a /api/scan-receipt
+// (Haiku + structured outputs, gate Pro server-side) y se prellenan los
+// campos. La imagen viaja en base64 directo — NO espera la subida al bucket
+// (esa sigue diferida hasta Guardar, como en G2). El fallo del escaneo nunca
+// bloquea: los campos quedan para llenado manual y la foto se conserva.
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(',')[1]);
+    r.onerror = reject;
+    r.readAsDataURL(blob);
+  });
+}
+
+let _scanSeq = 0;   // invalida respuestas viejas si el usuario cambia la foto
+async function scanReceipt(blob) {
+  const seq = ++_scanSeq;
+  const status = document.getElementById('exp-scan-status');
+  if (status) status.style.display = 'block';
+  try {
+    const { data: { session } } = await supa.auth.getSession();
+    if (!session || session.user.is_anonymous) return;
+    const apiBase = window.Capacitor?.isNativePlatform() ? 'https://emiti-app.vercel.app' : '';
+    const res = await fetch(`${apiBase}/api/scan-receipt`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body: JSON.stringify({ image_b64: await blobToBase64(blob) })
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const d = await res.json();
+    if (seq !== _scanSeq) return;   // el usuario ya cambió la foto: descartar
+    // Prellenar SIN pisar lo que el usuario ya escribió: merchant/total/tax
+    // solo si están vacíos; fecha del recibo siempre (es la autoritativa);
+    // categoría solo si sigue en el default 'Otros'.
+    const fill = (id, v) => {
+      const el = document.getElementById(id);
+      if (el && v != null && !String(el.value).trim()) el.value = v;
+    };
+    fill('exp-merchant', d.merchant);
+    fill('exp-total', d.total);
+    fill('exp-tax', d.tax);
+    if (d.date && /^\d{4}-\d{2}-\d{2}$/.test(d.date)) document.getElementById('exp-date').value = d.date;
+    const cat = document.getElementById('exp-category');
+    if (cat.value === 'Otros' && EXPENSE_CATEGORIES.includes(d.category)) cat.value = d.category;
+    toast('Recibo leído ✓ — revisa los datos');
+  } catch (e) {
+    console.warn('[gastos] scan:', e.message);
+    if (seq === _scanSeq) toast('No se pudo leer el recibo automáticamente, completa los datos manualmente.');
+  } finally {
+    if (seq === _scanSeq && status) status.style.display = 'none';
+  }
 }
 
 // Llena los <img data-rpath> de la lista con signed URLs en UN solo lote
@@ -3845,6 +3936,9 @@ window.onload = async () => {
 <div id="photoSourceSheet" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;align-items:flex-end;justify-content:center" onclick="if(event.target===this)closePhotoSheet()">
   <div style="background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:500px;padding:1.2rem 1.2rem 2rem">
     <div style="text-align:center;font-weight:600;margin-bottom:1rem;font-size:.95rem;color:var(--ink)">Agregar Foto</div>
+    <!-- Cámara REAL (@capacitor/camera, G3) — solo scope 'receipt'; los otros
+         scopes (doc/line) siguen sin cámara hasta decidir extenderla -->
+    <button id="photoSheetCameraBtn" onclick="captureReceiptPhoto()" style="display:none;width:100%;padding:.85rem;border:none;background:var(--gxl);color:var(--green);border-radius:10px;font-size:.95rem;font-weight:600;margin-bottom:.6rem;cursor:pointer">📷 Tomar foto</button>
     <button onclick="pickPhotoFrom('gallery')" style="width:100%;padding:.85rem;border:none;background:var(--gxl);color:var(--green);border-radius:10px;font-size:.95rem;font-weight:600;margin-bottom:.6rem;cursor:pointer">Photo Library</button>
     <button onclick="pickPhotoFrom('files')" style="width:100%;padding:.85rem;border:none;background:var(--gxl);color:var(--green);border-radius:10px;font-size:.95rem;font-weight:600;margin-bottom:.8rem;cursor:pointer">Choose File</button>
     <button onclick="closePhotoSheet()" style="width:100%;padding:.75rem;border:none;background:#f0f0f0;color:#666;border-radius:10px;font-size:.9rem;cursor:pointer">Cancelar</button>
@@ -3976,7 +4070,10 @@ async function flushPhotoDeletes(paths) {
   } catch (e) { console.warn('[photo] borrado de Storage falló:', e.message); }
 }
 
-// Selección SIN cámara, mismo patrón aprobado por Apple que el logo.
+// Selección sin cámara nativa (evita el crash de WKWebView del input file
+// sin NSCameraUsageDescription — fix preventivo, ver 8a1889e; NO fue una
+// restricción de Apple). La cámara real se reintrodujo en G3 para recibos
+// con @capacitor/camera (captureReceiptPhoto).
 //   Nativo: galería (pickImages) o archivos (pickFiles) — ambos sin cámara.
 //   Web: <input type=file> efímero (mismo accept que el logo).
 // Devuelve un array de Blobs.
@@ -4098,6 +4195,8 @@ let _photoSheetScope = null, _photoSheetLid = null;
 function openPhotoSheet(scope, lid) {
   if (window.Capacitor && Capacitor.isNativePlatform()) {
     _photoSheetScope = scope; _photoSheetLid = lid || null;
+    // Cámara solo para recibos (openReceiptSheet la muestra)
+    document.getElementById('photoSheetCameraBtn').style.display = 'none';
     document.getElementById('photoSourceSheet').style.display = 'flex';
   } else {
     addPhotos(scope, lid);   // web: <input type=file> directo (sin sheet)
