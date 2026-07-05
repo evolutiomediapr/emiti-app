@@ -932,6 +932,7 @@ table.pt tr:last-child td{border-bottom:none}
       <div class="f"><label>Fecha</label><input type="date" id="exp-date"></div>
       <div class="f"><label>Categoría</label><select id="exp-category"><option>Materiales</option><option>Transporte</option><option>Comidas</option><option>Herramientas</option><option>Oficina</option><option>Subcontratistas</option><option>Otros</option></select></div>
     </div>
+    <div class="f"><label>Recibo (opcional)</label><div id="exp-receipt-box"></div></div>
     <div class="f"><label>Notas (opcional)</label><input type="text" id="exp-notes" placeholder="Detalle del gasto…" maxlength="200"></div>
     <input type="hidden" id="exp-editing-id">
     <div style="display:flex;gap:.5rem;margin-top:.5rem">
@@ -3182,16 +3183,19 @@ function renderGastos() {
 
   list.innerHTML = EXPENSES.map(e => `
     <div class="ccard" style="cursor:pointer" onclick="openExpenseEditor('${e.id}')">
+      ${e.receipt_path ? `<img data-rpath="${_esc(e.receipt_path)}" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:8px;border:1px solid var(--bd);flex-shrink:0;background:var(--bd2)">` : ''}
       <div style="flex:1;min-width:0">
         <div style="font-weight:700;font-size:.9rem;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_esc(e.merchant)}</div>
         <div style="font-size:.72rem;color:var(--mu);margin-top:.2rem">${fmtExpDate(e.date)} · <span class="badge" style="background:var(--bd2);color:var(--ink2)">${_esc(e.category || 'Otros')}</span></div>
       </div>
       <div style="font-weight:800;font-size:.95rem;color:var(--ink)">$${(parseFloat(e.total) || 0).toFixed(2)}</div>
     </div>`).join('');
+  hydrateReceiptThumbs();   // signed URLs en lote, sin bloquear el render
 }
 
 function openExpenseEditor(id) {
   if (!isProUser()) { openExpenseUpsell(); return; }
+  EXP_RECEIPT_BLOB = null; EXP_RECEIPT_PATH = null; EXP_RECEIPT_REMOVED = false;
   document.getElementById('exp-merchant').value = '';
   document.getElementById('exp-total').value = '';
   document.getElementById('exp-tax').value = '';
@@ -3213,11 +3217,16 @@ function openExpenseEditor(id) {
       document.getElementById('exp-editing-id').value = e.id;
       document.getElementById('expDeleteBtn').style.display = 'block';
       document.getElementById('expEditorTitle').textContent = 'Editar Gasto';
+      EXP_RECEIPT_PATH = e.receipt_path || null;
     }
   }
+  renderReceiptBox();
   document.getElementById('expEditorModal').style.display = 'flex';
 }
-function closeExpenseEditor() { document.getElementById('expEditorModal').style.display = 'none'; }
+function closeExpenseEditor() {
+  _revokeReceiptPreview();
+  document.getElementById('expEditorModal').style.display = 'none';
+}
 
 async function saveExpense() {
   if (!isProUser()) { openExpenseUpsell(); return; }
@@ -3232,29 +3241,167 @@ async function saveExpense() {
   if (!merchant) { toast('Escribe el comercio o proveedor'); return; }
   if (!(total > 0)) { toast('Escribe el total del gasto'); return; }
   if (!date) { toast('Selecciona la fecha'); return; }
-  const editId = document.getElementById('exp-editing-id').value;
-  const row = { merchant, total, tax, date, category, notes };
-  let error;
-  if (editId) {
-    ({ error } = await supa.from('expenses').update(row).eq('id', editId).eq('user_id', CURRENT_USER.id));
-  } else {
-    ({ error } = await supa.from('expenses').insert({ ...row, user_id: CURRENT_USER.id }));
+  if (_expBusy) return;
+  _expBusy = true;
+  try {
+    const editId = document.getElementById('exp-editing-id').value;
+    // Recibo: la subida se difiere hasta aquí. oldPath se borra SOLO tras
+    // guardar en BD con éxito (reemplazo o "Quitar") — nunca antes.
+    const oldPath = EXP_RECEIPT_PATH;
+    let receipt_path = EXP_RECEIPT_REMOVED ? null : EXP_RECEIPT_PATH;
+    let uploadedNew = null;
+    if (EXP_RECEIPT_BLOB) {
+      try {
+        receipt_path = uploadedNew = await uploadReceipt(EXP_RECEIPT_BLOB);
+      } catch (e) { toast('Error subiendo el recibo: ' + e.message); return; }
+    }
+    const row = { merchant, total, tax, date, category, notes, receipt_path };
+    let error;
+    if (editId) {
+      ({ error } = await supa.from('expenses').update(row).eq('id', editId).eq('user_id', CURRENT_USER.id));
+    } else {
+      ({ error } = await supa.from('expenses').insert({ ...row, user_id: CURRENT_USER.id }));
+    }
+    if (error) {
+      // El archivo recién subido quedaría huérfano si la BD rechazó la fila
+      if (uploadedNew) deleteReceiptFile(uploadedNew);
+      toast('Error: ' + error.message);
+      return;
+    }
+    if (oldPath && oldPath !== receipt_path) deleteReceiptFile(oldPath);
+    closeExpenseEditor();
+    await loadExpenses();
+    toast('Gasto guardado ✓');
+  } finally {
+    _expBusy = false;
   }
-  if (error) { toast('Error: ' + error.message); return; }
-  closeExpenseEditor();
-  await loadExpenses();
-  toast('Gasto guardado ✓');
 }
 
 async function deleteExpense() {
   const editId = document.getElementById('exp-editing-id').value;
   if (!editId) return;
   if (!confirm('¿Eliminar este gasto?')) return;
+  const exp = EXPENSES.find(x => x.id === editId);
   const { error } = await supa.from('expenses').delete().eq('id', editId).eq('user_id', CURRENT_USER.id);
   if (error) { toast('Error al eliminar: ' + error.message); return; }
+  // El archivo se borra DESPUÉS del delete confirmado en BD (si falla el
+  // remove queda un huérfano en Storage, nunca un gasto sin su recibo)
+  if (exp?.receipt_path) deleteReceiptFile(exp.receipt_path);
   closeExpenseEditor();
   await loadExpenses();
   toast('Gasto eliminado');
+}
+
+// ── RECIBOS · Storage (bucket PRIVADO expense-receipts) ──
+// A diferencia de document-photos (público), aquí no hay URL pública: se
+// sirven con signed URLs de 1h creadas en lote (createSignedUrls) y
+// cacheadas en memoria por sesión. Selección/compresión reutiliza el motor
+// v1.4 (pickPhotoBlobs + compressToJpeg); la subida difiere hasta Guardar.
+let EXP_RECEIPT_BLOB = null;      // foto nueva pendiente (se sube al guardar)
+let EXP_RECEIPT_PATH = null;      // path existente del gasto en edición
+let EXP_RECEIPT_REMOVED = false;  // el usuario quitó el recibo existente
+let EXP_RECEIPT_OBJURL = null;    // objectURL del preview local (revocar)
+let _expBusy = false;
+const RECEIPT_URL_CACHE = {};     // path -> { url, exp }
+
+async function signedReceiptUrls(paths) {
+  if (!supa) return {};
+  const now = Date.now();
+  const missing = [...new Set(paths)].filter(p => !(RECEIPT_URL_CACHE[p]?.exp > now));
+  if (missing.length) {
+    const { data, error } = await supa.storage.from('expense-receipts').createSignedUrls(missing, 3600);
+    if (error) console.warn('[gastos] signed urls:', error.message);
+    else (data || []).forEach((d, i) => {
+      // Renovar 5 min antes de expirar para no servir una URL a punto de morir
+      if (d.signedUrl) RECEIPT_URL_CACHE[missing[i]] = { url: d.signedUrl, exp: now + 3300 * 1000 };
+    });
+  }
+  const map = {};
+  paths.forEach(p => { if (RECEIPT_URL_CACHE[p]) map[p] = RECEIPT_URL_CACHE[p].url; });
+  return map;
+}
+
+async function uploadReceipt(blob) {
+  const uid = CURRENT_USER?.id;
+  if (!uid) throw new Error('Sesión requerida para subir recibos');
+  const path = `${uid}/${uuid()}.jpg`;
+  const { error } = await supa.storage.from('expense-receipts')
+    .upload(path, blob, { contentType: 'image/jpeg', upsert: false });
+  if (error) throw new Error(error.message);
+  return path;
+}
+
+async function deleteReceiptFile(path) {
+  if (!path || !supa) return;
+  try {
+    const { error } = await supa.storage.from('expense-receipts').remove([path]);
+    if (error) console.warn('[gastos] borrar recibo:', error.message);
+  } catch (e) { console.warn('[gastos] borrar recibo:', e.message); }
+  delete RECEIPT_URL_CACHE[path];
+}
+
+// Nativo: reutiliza el sheet doble de v1.4 con scope 'receipt'. Web: input directo.
+function openReceiptSheet() {
+  if (window.Capacitor && Capacitor.isNativePlatform()) {
+    _photoSheetScope = 'receipt'; _photoSheetLid = null;
+    document.getElementById('photoSourceSheet').style.display = 'flex';
+  } else {
+    addReceiptPhoto();
+  }
+}
+
+async function addReceiptPhoto(source) {
+  let blobs;
+  try { blobs = await pickPhotoBlobs(source); } catch (_) { return; }
+  if (!blobs || !blobs.length) return;
+  try {
+    const { blob } = await compressToJpeg(blobs[0]);   // 1 recibo por gasto
+    EXP_RECEIPT_BLOB = blob;
+    EXP_RECEIPT_REMOVED = false;
+    renderReceiptBox();
+  } catch (e) {
+    console.warn('[gastos] compresión:', e.message);
+    toast('No se pudo procesar la imagen');
+  }
+}
+
+function removeReceipt() {
+  EXP_RECEIPT_BLOB = null;
+  if (EXP_RECEIPT_PATH) EXP_RECEIPT_REMOVED = true;
+  renderReceiptBox();
+}
+
+function _revokeReceiptPreview() {
+  if (EXP_RECEIPT_OBJURL) { URL.revokeObjectURL(EXP_RECEIPT_OBJURL); EXP_RECEIPT_OBJURL = null; }
+}
+
+async function renderReceiptBox() {
+  const box = document.getElementById('exp-receipt-box');
+  if (!box) return;
+  _revokeReceiptPreview();
+  let thumb = null;
+  if (EXP_RECEIPT_BLOB) {
+    EXP_RECEIPT_OBJURL = URL.createObjectURL(EXP_RECEIPT_BLOB);
+    thumb = EXP_RECEIPT_OBJURL;
+  } else if (EXP_RECEIPT_PATH && !EXP_RECEIPT_REMOVED) {
+    const m = await signedReceiptUrls([EXP_RECEIPT_PATH]);
+    thumb = m[EXP_RECEIPT_PATH] || null;
+  }
+  box.innerHTML = thumb
+    ? `<div style="display:flex;align-items:center;gap:.7rem">
+         <img src="${thumb}" style="width:54px;height:54px;object-fit:cover;border-radius:8px;border:1px solid var(--bd)">
+         <button type="button" class="btn bo bsm" onclick="openReceiptSheet()">Cambiar</button>
+         <button type="button" class="btn bsm" style="color:var(--red)" onclick="removeReceipt()">Quitar</button>
+       </div>`
+    : `<button type="button" class="btn bo bsm" style="width:100%" onclick="openReceiptSheet()">🧾 Adjuntar foto del recibo</button>`;
+}
+
+// Llena los <img data-rpath> de la lista con signed URLs en UN solo lote
+async function hydrateReceiptThumbs() {
+  const imgs = [...document.querySelectorAll('#expList img[data-rpath]')];
+  if (!imgs.length) return;
+  const map = await signedReceiptUrls(imgs.map(i => i.dataset.rpath));
+  imgs.forEach(i => { if (map[i.dataset.rpath]) i.src = map[i.dataset.rpath]; });
 }
 
 // ── SERVICE CATALOG ──
@@ -3959,6 +4106,8 @@ function openPhotoSheet(scope, lid) {
 function closePhotoSheet() { document.getElementById('photoSourceSheet').style.display = 'none'; }
 function pickPhotoFrom(source) {
   closePhotoSheet();
+  // El sheet es compartido: scope 'receipt' viene de openReceiptSheet (Gastos)
+  if (_photoSheetScope === 'receipt') { addReceiptPhoto(source); return; }
   addPhotos(_photoSheetScope, _photoSheetLid, source);
 }
 
