@@ -80,6 +80,7 @@ textarea{resize:vertical;min-height:66px;line-height:1.5}
 .nav{background:#fff;border-top:1px solid var(--bd);display:flex;position:sticky;bottom:0;z-index:200;padding-bottom:env(safe-area-inset-bottom,0)}
 .nb{flex:1;display:flex;flex-direction:column;align-items:center;padding:.6rem .3rem;gap:.15rem;cursor:pointer;border:none;background:transparent;color:var(--mu);font-size:.58rem;font-weight:600;font-family:'Plus Jakarta Sans',sans-serif;transition:color .15s;text-transform:uppercase;letter-spacing:.03em;position:relative}
 .nb .ic{font-size:0;line-height:1;display:flex;align-items:center;justify-content:center}
+.nb-pro{position:absolute;top:.3rem;left:50%;margin-left:7px;background:var(--green);color:#fff;font-size:.44rem;font-weight:800;padding:.1rem .28rem;border-radius:6px;letter-spacing:.06em;line-height:1}
 .nb.active{color:var(--green)}
 .nb-badge{position:absolute;top:4px;right:calc(50% - 18px);background:var(--red);color:#fff;font-size:.5rem;font-weight:700;padding:.1rem .3rem;border-radius:10px;display:none}
 .nb-badge.show{display:block}
@@ -695,6 +696,13 @@ table.pt tr:last-child td{border-bottom:none}
     <div id="historialContent"></div>
   </div>
 
+  <!-- GASTOS (Pro) -->
+  <div class="page" id="page-gastos">
+    <div class="rh" style="margin-bottom:1rem;display:flex;justify-content:space-between;align-items:center"><span class="rl">Gastos</span><button class="btn bsm bg" id="btn-new-expense" onclick="openExpenseEditor(null)" style="font-size:.72rem;padding:.3rem .65rem;display:none">+ Nuevo gasto</button></div>
+    <div id="expSummary"></div>
+    <div id="expList"></div>
+  </div>
+
   <!-- CLIENTES -->
   <div class="page" id="page-clientes">
     <div class="rh" style="margin-bottom:1rem"><span class="rl">Mis Clientes</span></div>
@@ -790,6 +798,9 @@ table.pt tr:last-child td{border-bottom:none}
     </button>
     <button class="nb" id="nb-historial" onclick="go('historial')">
       <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="12" width="4" height="9" rx="1"/><rect x="10" y="7" width="4" height="14" rx="1"/><rect x="17" y="3" width="4" height="18" rx="1"/></svg></span>Historial
+    </button>
+    <button class="nb" id="nb-gastos" onclick="go('gastos')">
+      <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2h14v20l-2-1.5L15 22l-2-1.5L11 22l-2-1.5L7 22l-2-1.5z"/><line x1="9" y1="7" x2="15" y2="7"/><line x1="9" y1="11" x2="15" y2="11"/><line x1="9" y1="15" x2="12" y2="15"/></svg></span>Gastos<span class="nb-pro" id="nb-gastos-pro" style="display:none">PRO</span>
     </button>
     <button class="nb" id="nb-ajustes" onclick="go('ajustes')">
       <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg></span>Negocio
@@ -904,6 +915,30 @@ table.pt tr:last-child td{border-bottom:none}
       <button class="btn bg" style="flex:1" onclick="saveSvc()">Guardar</button>
     </div>
     <button id="svcDeleteBtn" class="btn" onclick="deleteSvc()" style="display:none;width:100%;margin-top:.5rem;background:var(--rl);color:var(--red);border:1.5px solid rgba(192,57,43,.2)">Eliminar servicio</button>
+  </div>
+</div>
+
+<!-- EXPENSE EDITOR MODAL (Pro) -->
+<div class="modal-overlay" id="expEditorModal">
+  <div class="modal-box" style="position:relative">
+    <button class="modal-close" onclick="closeExpenseEditor()">✕</button>
+    <h3 id="expEditorTitle">Nuevo Gasto</h3>
+    <div class="f"><label>Comercio / Proveedor</label><input type="text" id="exp-merchant" placeholder="Ej: Home Depot"></div>
+    <div class="two">
+      <div class="f"><label>Total ($)</label><input type="number" id="exp-total" placeholder="0.00" min="0" step="0.01"></div>
+      <div class="f"><label>IVU ($, opcional)</label><input type="number" id="exp-tax" placeholder="0.00" min="0" step="0.01"></div>
+    </div>
+    <div class="two">
+      <div class="f"><label>Fecha</label><input type="date" id="exp-date"></div>
+      <div class="f"><label>Categoría</label><select id="exp-category"><option>Materiales</option><option>Transporte</option><option>Comidas</option><option>Herramientas</option><option>Oficina</option><option>Subcontratistas</option><option>Otros</option></select></div>
+    </div>
+    <div class="f"><label>Notas (opcional)</label><input type="text" id="exp-notes" placeholder="Detalle del gasto…" maxlength="200"></div>
+    <input type="hidden" id="exp-editing-id">
+    <div style="display:flex;gap:.5rem;margin-top:.5rem">
+      <button class="btn bo" style="flex:1" onclick="closeExpenseEditor()">Cancelar</button>
+      <button class="btn bg" style="flex:1" onclick="saveExpense()">Guardar</button>
+    </div>
+    <button id="expDeleteBtn" class="btn" onclick="deleteExpense()" style="display:none;width:100%;margin-top:.5rem;background:var(--rl);color:var(--red);border:1.5px solid rgba(192,57,43,.2)">Eliminar gasto</button>
   </div>
 </div>
 
@@ -1605,6 +1640,8 @@ async function loadProfile() {
 
 // ── PLAN BAR ──
 function updatePlanBar() {
+  // El badge PRO del tab Gastos sigue el mismo ciclo de vida que la plan bar
+  updateGastosBadge();
   const bar = document.getElementById('planBar');
   if (!bar || !CURRENT_USER || CURRENT_USER.is_anonymous) return;
   bar.style.display = 'flex';
@@ -2034,9 +2071,10 @@ function go(name) {
   document.querySelectorAll('.nb').forEach(b => b.classList.remove('active'));
   document.getElementById('page-'+name).classList.add('active');
   const nb = document.getElementById('nb-'+name); if (nb) nb.classList.add('active');
-  document.getElementById('fab').style.display = (name==='nueva'||name==='ajustes') ? 'none' : 'flex';
+  document.getElementById('fab').style.display = (name==='nueva'||name==='ajustes'||name==='gastos') ? 'none' : 'flex';
   if (name==='home') updateDash();
   if (name==='facturas') renderAll();
+  if (name==='gastos') enterGastos();
   if (name==='clientes') renderClients();
   if (name==='historial') { buildHistFilters(); renderHistorial(); }
   if (name==='ajustes') { fillSettings(); syncBizSig(); syncLogo(); renderSvcMgr(); }
@@ -3071,6 +3109,153 @@ function setGreet() {
 }
 
 function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2800);}
+
+// ── GASTOS (Pro) ──
+// Supabase-directo (patrón services): sin copia local ni sync — la tabla
+// expenses con RLS por user_id es la fuente de verdad (requiere conexión).
+// Gate Pro en crear/editar/borrar; un ex-Pro que bajó a Free conserva sus
+// gastos en modo lectura (la lista renderiza, el editor abre el upsell).
+const EXPENSE_CATEGORIES = ['Materiales','Transporte','Comidas','Herramientas','Oficina','Subcontratistas','Otros'];
+let EXPENSES = [];
+
+function updateGastosBadge() {
+  const b = document.getElementById('nb-gastos-pro');
+  if (b) b.style.display = isProUser() ? 'none' : 'inline';
+}
+
+function openExpenseUpsell() {
+  document.getElementById('upg-title').textContent = 'Los gastos son función Pro';
+  document.getElementById('upg-msg').textContent = 'Registra los gastos de tu negocio y tenlo todo en un solo lugar con el plan Pro.';
+  document.getElementById('upgradeModal').classList.add('open');
+}
+
+async function enterGastos() {
+  updateGastosBadge();
+  renderGastos();               // pinta lo cacheado de inmediato
+  await loadExpenses();
+  // Free sin gastos previos (nunca fue Pro): directo a la pantalla de upgrade.
+  // Un ex-Pro con gastos ve su lista en modo lectura, sin modal automático.
+  if (!isProUser() && !EXPENSES.length) openExpenseUpsell();
+}
+
+async function loadExpenses() {
+  if (!supa || !CURRENT_USER || CURRENT_USER.is_anonymous) { EXPENSES = []; renderGastos(); return; }
+  const { data, error } = await supa.from('expenses').select('*')
+    .eq('user_id', CURRENT_USER.id)
+    .order('date', { ascending: false }).order('created_at', { ascending: false });
+  if (error) { console.warn('[gastos] load:', error.message); return; }
+  EXPENSES = data || [];
+  renderGastos();
+}
+
+function fmtExpDate(d) {
+  if (!d) return '—';
+  const MES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  const [y, m, day] = d.split('-');
+  return `${parseInt(day)} ${MES[parseInt(m) - 1]} ${y}`;
+}
+
+function renderGastos() {
+  const list = document.getElementById('expList');
+  const summary = document.getElementById('expSummary');
+  if (!list || !summary) return;
+  const pro = isProUser();
+  const btn = document.getElementById('btn-new-expense');
+  if (btn) btn.style.display = pro ? 'inline-flex' : 'none';
+
+  if (!EXPENSES.length) {
+    summary.innerHTML = '';
+    list.innerHTML = pro
+      ? `<div class="empty"><div class="ei">🧾</div><p>Registra tu primer gasto<br>con el botón de arriba.</p></div>`
+      : `<div class="empty"><div class="ei">🧾</div><p>Controla los gastos de tu negocio<br>con el plan Pro.</p><button class="btn bg bsm" style="margin-top:1rem" onclick="openExpenseUpsell()">Ver plan Pro</button></div>`;
+    return;
+  }
+
+  const now = new Date();
+  const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const monthTotal = EXPENSES.filter(e => (e.date || '').startsWith(ym))
+    .reduce((s, e) => s + (parseFloat(e.total) || 0), 0);
+  summary.innerHTML = `<div class="block" style="display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:.8rem;color:var(--mu);font-weight:600">Gastos de este mes</span>
+      <span style="font-size:1.15rem;font-weight:800;color:var(--ink)">$${monthTotal.toFixed(2)}</span>
+    </div>` + (pro ? '' : `<div class="block" style="font-size:.75rem;color:var(--mu);line-height:1.5">Tu plan actual no incluye gastos: puedes ver los existentes, pero no crear ni editar. <a href="#" onclick="openExpenseUpsell();return false" style="color:var(--green);font-weight:700">Volver a Pro</a></div>`);
+
+  list.innerHTML = EXPENSES.map(e => `
+    <div class="ccard" style="cursor:pointer" onclick="openExpenseEditor('${e.id}')">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:.9rem;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_esc(e.merchant)}</div>
+        <div style="font-size:.72rem;color:var(--mu);margin-top:.2rem">${fmtExpDate(e.date)} · <span class="badge" style="background:var(--bd2);color:var(--ink2)">${_esc(e.category || 'Otros')}</span></div>
+      </div>
+      <div style="font-weight:800;font-size:.95rem;color:var(--ink)">$${(parseFloat(e.total) || 0).toFixed(2)}</div>
+    </div>`).join('');
+}
+
+function openExpenseEditor(id) {
+  if (!isProUser()) { openExpenseUpsell(); return; }
+  document.getElementById('exp-merchant').value = '';
+  document.getElementById('exp-total').value = '';
+  document.getElementById('exp-tax').value = '';
+  document.getElementById('exp-date').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('exp-category').value = 'Otros';
+  document.getElementById('exp-notes').value = '';
+  document.getElementById('exp-editing-id').value = '';
+  document.getElementById('expDeleteBtn').style.display = 'none';
+  document.getElementById('expEditorTitle').textContent = 'Nuevo Gasto';
+  if (id !== null) {
+    const e = EXPENSES.find(x => x.id === id);
+    if (e) {
+      document.getElementById('exp-merchant').value = e.merchant;
+      document.getElementById('exp-total').value = e.total;
+      document.getElementById('exp-tax').value = e.tax ?? '';
+      document.getElementById('exp-date').value = e.date || '';
+      document.getElementById('exp-category').value = EXPENSE_CATEGORIES.includes(e.category) ? e.category : 'Otros';
+      document.getElementById('exp-notes').value = e.notes || '';
+      document.getElementById('exp-editing-id').value = e.id;
+      document.getElementById('expDeleteBtn').style.display = 'block';
+      document.getElementById('expEditorTitle').textContent = 'Editar Gasto';
+    }
+  }
+  document.getElementById('expEditorModal').style.display = 'flex';
+}
+function closeExpenseEditor() { document.getElementById('expEditorModal').style.display = 'none'; }
+
+async function saveExpense() {
+  if (!isProUser()) { openExpenseUpsell(); return; }
+  if (!supa || !CURRENT_USER || CURRENT_USER.is_anonymous) { toast('Inicia sesión para guardar gastos'); return; }
+  const merchant = document.getElementById('exp-merchant').value.trim();
+  const total = parseFloat(document.getElementById('exp-total').value);
+  const taxRaw = document.getElementById('exp-tax').value;
+  const tax = taxRaw === '' ? null : (parseFloat(taxRaw) || 0);
+  const date = document.getElementById('exp-date').value;
+  const category = document.getElementById('exp-category').value;
+  const notes = document.getElementById('exp-notes').value.trim() || null;
+  if (!merchant) { toast('Escribe el comercio o proveedor'); return; }
+  if (!(total > 0)) { toast('Escribe el total del gasto'); return; }
+  if (!date) { toast('Selecciona la fecha'); return; }
+  const editId = document.getElementById('exp-editing-id').value;
+  const row = { merchant, total, tax, date, category, notes };
+  let error;
+  if (editId) {
+    ({ error } = await supa.from('expenses').update(row).eq('id', editId).eq('user_id', CURRENT_USER.id));
+  } else {
+    ({ error } = await supa.from('expenses').insert({ ...row, user_id: CURRENT_USER.id }));
+  }
+  if (error) { toast('Error: ' + error.message); return; }
+  closeExpenseEditor();
+  await loadExpenses();
+  toast('Gasto guardado ✓');
+}
+
+async function deleteExpense() {
+  const editId = document.getElementById('exp-editing-id').value;
+  if (!editId) return;
+  if (!confirm('¿Eliminar este gasto?')) return;
+  const { error } = await supa.from('expenses').delete().eq('id', editId).eq('user_id', CURRENT_USER.id);
+  if (error) { toast('Error al eliminar: ' + error.message); return; }
+  closeExpenseEditor();
+  await loadExpenses();
+  toast('Gasto eliminado');
+}
 
 // ── SERVICE CATALOG ──
 function _esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
