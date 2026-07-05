@@ -4,9 +4,11 @@
   "webDir": "www",
   "packageClassList": [
     "AppPlugin",
+    "CAPBrowserPlugin",
     "FilePickerPlugin",
     "EmitIAPPlugin",
-    "PdfGeneratorPlugin"
+    "PdfGeneratorPlugin",
+    "SocialLoginPlugin"
   ],
   "plugins": {
     "CapacitorHttp": {

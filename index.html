@@ -464,6 +464,12 @@ table.pt tr:last-child td{border-bottom:none}
 .auth-tab.active{color:var(--green);border-bottom-color:var(--green)}
 .auth-err{background:var(--rl);color:var(--red);border-radius:var(--rs);padding:.6rem .9rem;font-size:.82rem;margin-bottom:.75rem;display:none}
 .auth-err.show{display:block}
+.btn-social{display:flex;align-items:center;justify-content:center;gap:.55rem;width:100%;padding:.72rem 1rem;border:1px solid var(--bd);border-radius:var(--rs);background:#fff;color:var(--ink);font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:.85rem;cursor:pointer;transition:all .15s;margin-bottom:.55rem}
+.btn-social:active{transform:scale(.99)}
+.btn-social:disabled{opacity:.6;cursor:default}
+.btn-social.apple{background:#000;border-color:#000;color:#fff}
+.auth-divider{display:flex;align-items:center;gap:.7rem;color:var(--mu);font-size:.72rem;font-weight:600;margin:.35rem 0 1rem}
+.auth-divider::before,.auth-divider::after{content:'';flex:1;height:1px;background:var(--bd)}
 .auth-context{display:none;align-items:flex-start;gap:.55rem;background:var(--gxl);border:1px solid rgba(26,122,74,.22);color:var(--ink2);border-radius:var(--rs);padding:.7rem .85rem;font-size:.8rem;line-height:1.45;margin-bottom:1rem}
 .auth-context.show{display:flex}
 .auth-context svg{width:18px;height:18px;color:var(--green);flex-shrink:0;margin-top:.05rem}
@@ -913,6 +919,22 @@ table.pt tr:last-child td{border-bottom:none}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
       <span id="auth-context-text"></span>
     </div>
+    <!-- SOCIAL LOGIN: encima de las tabs porque aplica a login Y registro
+         (OAuth crea la cuenta si no existe). Apple se añade aquí en la Pieza 3
+         (primero en el orden, oculto en web — Guideline 4.8 es solo App Store). -->
+    <div id="auth-social">
+      <!-- Solo nativo (display se activa en JS): Guideline 4.8 exige Apple con
+           prominencia ≥ que Google, por eso va primero y en negro -->
+      <button class="btn-social apple" id="btn-apple" style="display:none" onclick="signInWithApple()">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg>
+        Continuar con Apple
+      </button>
+      <button class="btn-social" id="btn-google" onclick="signInWithGoogle()">
+        <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.3 6.1 29.4 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.7-.4-3.9z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.3 6.1 29.4 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.1-4.1 5.5l6.2 5.2C41.4 34.9 44 30 44 24c0-1.3-.1-2.7-.4-3.9z"/></svg>
+        Continuar con Google
+      </button>
+      <div class="auth-divider">o con tu correo</div>
+    </div>
     <div class="auth-tabs">
       <button class="auth-tab active" id="tab-login" onclick="switchAuthTab('login')">Iniciar sesión</button>
       <button class="auth-tab" id="tab-signup" onclick="switchAuthTab('signup')">Registrarse</button>
@@ -923,6 +945,7 @@ table.pt tr:last-child td{border-bottom:none}
       <div class="f"><label>Correo electrónico</label><input type="email" id="auth-email" placeholder="correo@ejemplo.com" autocomplete="email"></div>
       <div class="f"><label>Contraseña</label><div class="pw-wrap"><input type="password" id="auth-pass" placeholder="••••••••" autocomplete="current-password"><button type="button" class="pw-eye" onclick="togglePw('auth-pass',this)" tabindex="-1"><svg id="eye-auth-pass" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
       <div style="text-align:right;margin:-.3rem 0 .6rem"><a href="#" onclick="showRecoveryForm();return false" style="font-size:.75rem;color:var(--green);text-decoration:none">¿Olvidaste tu contraseña?</a></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:0 0 .6rem"><span class="sw-label">Recordar mi correo</span><button class="switch" id="sw-remember" role="switch" aria-checked="false" aria-label="Recordar mi correo" onclick="toggleRememberEmail()"><span class="switch-thumb"></span></button></div>
       <button class="btn bg" style="width:100%;margin-top:.3rem" id="btn-login" onclick="authLogin()">Entrar</button>
     </div>
     <!-- SIGNUP -->
@@ -1184,6 +1207,10 @@ function switchAuthTab(tab) {
   document.getElementById('tab-signup').classList.toggle('active', tab === 'signup');
   const tabs = document.querySelector('.auth-tabs');
   if (tabs) tabs.style.display = tab === 'newpass' ? 'none' : 'flex';
+  // Botones sociales solo en login/registro: en recovery distraen y en newpass
+  // hay una sesión de recovery activa — entrar con Google ahí deja estado ambiguo.
+  const social = document.getElementById('auth-social');
+  if (social) social.style.display = (tab === 'login' || tab === 'signup') ? 'block' : 'none';
   document.getElementById('auth-err').classList.remove('show');
 }
 
@@ -1203,6 +1230,100 @@ function showAuthModal(reason) {
 function hideAuthModal() {
   document.getElementById('authModal').classList.add('hide');
   document.getElementById('auth-context')?.classList.remove('show');
+}
+
+// ── RECORDAR CORREO ──
+// Preferencia de dispositivo, sin namespace (como fpr4_remind_days): prellenar
+// el campo de email en el próximo login. logout() recarga la página, así que
+// el init al parsear cubre el caso "cerré sesión y vuelvo a entrar".
+function toggleRememberEmail() {
+  const sw = document.getElementById('sw-remember');
+  const on = sw.getAttribute('aria-checked') !== 'true';
+  sw.setAttribute('aria-checked', on);
+  if (on) {
+    localStorage.setItem('fpr4_remember_email', '1');
+    const email = document.getElementById('auth-email').value.trim();
+    if (email) localStorage.setItem('fpr4_saved_email', email);
+  } else {
+    localStorage.removeItem('fpr4_remember_email');
+    localStorage.removeItem('fpr4_saved_email');
+  }
+}
+
+// Llamar tras cada login exitoso (password directo; OAuth vía onAuthStateChange)
+function saveRememberedEmail(email) {
+  if (localStorage.getItem('fpr4_remember_email') === '1' && email)
+    localStorage.setItem('fpr4_saved_email', email);
+}
+
+(function initRememberEmail() {
+  if (localStorage.getItem('fpr4_remember_email') !== '1') return;
+  document.getElementById('sw-remember').setAttribute('aria-checked', 'true');
+  const saved = localStorage.getItem('fpr4_saved_email');
+  if (saved) document.getElementById('auth-email').value = saved;
+})();
+
+// ── GOOGLE SIGN-IN ──
+// Nativo: Google bloquea OAuth dentro de WKWebView (disallowed_useragent), así
+// que la URL se abre en SFSafariViewController (@capacitor/browser), que sí está
+// permitido y comparte cookies con Safari. El callback vuelve por emiti://oauth
+// con #access_token — la rama legacy de handleDeepLink hace setSession y el
+// SIGNED_IN normal abre la app. skipBrowserRedirect es obligatorio: sin él,
+// supabase-js redirigiría el propio webview.
+// Web: redirect de página completa; supabase-js procesa el hash al volver.
+async function signInWithGoogle() {
+  const btn = document.getElementById('btn-google');
+  btn.disabled = true;
+  try {
+    const native = window.Capacitor?.isNativePlatform();
+    const { data, error } = await supa.auth.signInWithOAuth({
+      provider: 'google',
+      options: native
+        ? { redirectTo: 'emiti://oauth', skipBrowserRedirect: true }
+        : { redirectTo: window.location.origin }
+    });
+    if (error) throw error;
+    if (native) await Capacitor.Plugins.Browser.open({ url: data.url });
+    // En web no se llega aquí: signInWithOAuth ya navegó la página.
+  } catch (e) {
+    showAuthErr(e.message || 'No se pudo iniciar sesión con Google.');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ── APPLE SIGN-IN (solo nativo) ──
+// Hoja nativa ASAuthorizationController (@capgo/capacitor-social-login) →
+// signInWithIdToken. Sin Service ID ni client secret: el provider de Supabase
+// lleva el bundle ID (app.emiti.app) como client ID. Patrón de nonce de
+// Supabase: al request de Apple va el SHA-256 (queda como claim en el idToken);
+// GoTrue recibe el crudo, lo hashea y lo compara contra el claim.
+// En web el botón queda oculto — Guideline 4.8 aplica solo al App Store y el
+// flujo web exigiría Service ID + secret que expira cada 6 meses.
+let APPLE_INIT = false;
+async function signInWithApple() {
+  const btn = document.getElementById('btn-apple');
+  btn.disabled = true;
+  try {
+    const SL = Capacitor.Plugins.SocialLogin;
+    if (!APPLE_INIT) { await SL.initialize({ apple: {} }); APPLE_INIT = true; }
+    const rawNonce = [...crypto.getRandomValues(new Uint8Array(16))].map(b => b.toString(16).padStart(2, '0')).join('');
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rawNonce));
+    const hashedNonce = [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('');
+    const { result } = await SL.login({ provider: 'apple', options: { scopes: ['name', 'email'], nonce: hashedNonce } });
+    if (!result.idToken) throw new Error('Apple no devolvió el token de identidad.');
+    const { error } = await supa.auth.signInWithIdToken({ provider: 'apple', token: result.idToken, nonce: rawNonce });
+    if (error) throw error;
+    // El SIGNED_IN de onAuthStateChange abre la app (mismo camino que Google)
+  } catch (e) {
+    // Cancelar la hoja de Apple llega como AuthorizationError 1001 — no es error
+    if (!/cancel|1001/i.test(e.message || '')) showAuthErr(e.message || 'No se pudo iniciar sesión con Apple.');
+  } finally {
+    btn.disabled = false;
+  }
+}
+if (window.Capacitor?.isNativePlatform()) {
+  document.getElementById('btn-apple').style.display = 'flex';
 }
 
 async function authLogin() {
@@ -1240,6 +1361,7 @@ async function authLogin() {
 
     console.log('[Auth] Login OK, cargando perfil…');
     CURRENT_USER = data.user;
+    saveRememberedEmail(email);
 
     try {
       await Promise.race([
@@ -1354,6 +1476,11 @@ async function confirmWithTokenHash(tokenHash, type) {
 // procesa el hash de window.location), así que la sesión se establece a mano
 // con setSession.
 async function handleDeepLink(url) {
+  // Callback OAuth (emiti://oauth): el SFSafariViewController queda abierto
+  // encima de la app tras el redirect — cerrarlo antes de procesar los tokens.
+  if (url.startsWith('emiti://oauth')) {
+    try { await Capacitor.Plugins.Browser.close(); } catch(e) {}
+  }
   // Universal Link nuevo: https://app.emiti.app/auth/confirm?token_hash=…&type=…
   const qIdx = url.indexOf('?');
   const qs = new URLSearchParams(qIdx >= 0 ? url.slice(qIdx + 1).split('#')[0] : '');
@@ -1665,7 +1792,7 @@ async function deleteAccount() {
       // rearrancar con la sesión de un usuario que ya no existe.
       await supa.auth.signOut();
     }
-    [...USER_SCOPED_KEYS.map(skey), 'fpr4_ns_' + STORAGE_UID, 'fpr4_remind_days', 'fpr4_usage'].forEach(k => localStorage.removeItem(k));
+    [...USER_SCOPED_KEYS.map(skey), 'fpr4_ns_' + STORAGE_UID, 'fpr4_remind_days', 'fpr4_usage', 'fpr4_remember_email', 'fpr4_saved_email'].forEach(k => localStorage.removeItem(k));
     window.location.reload();
   } catch(e) {
     toast('Error al eliminar cuenta: ' + e.message);
@@ -3309,6 +3436,9 @@ window.onload = async () => {
         return;
       }
       // Usuario autenticado real — ocultar login y abrir app
+      // (solo en SIGNED_IN real, no en cada TOKEN_REFRESHED: cubre el login
+      // OAuth, que no pasa por authLogin)
+      if (event === 'SIGNED_IN') saveRememberedEmail(CURRENT_USER.email);
       hideAuthModal();
       updateTopbarAuth();
       await loadUserState(CURRENT_USER.id);

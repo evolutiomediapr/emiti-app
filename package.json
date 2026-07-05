@@ -5,11 +5,13 @@
   "dependencies": {
     "@apple/app-store-server-library": "^3.1.0",
     "@capacitor/app": "^8.1.0",
+    "@capacitor/browser": "^8.0.3",
     "@capacitor/cli": "^8.4.0",
     "@capacitor/core": "^8.4.0",
     "@capacitor/ios": "^8.4.0",
     "@capawesome/capacitor-file-picker": "^8.0.2",
     "@capgo/capacitor-pdf-generator": "^8.0.34",
+    "@capgo/capacitor-social-login": "^8.3.33",
     "@supabase/supabase-js": "^2.45.0",
     "stripe": "^16.0.0",
     "twilio": "^5.0.0"

@@ -1,0 +1,30 @@
+var capacitorCapacitorPdfGenerator = (function (exports, core) {
+    'use strict';
+
+    const PdfGenerator = core.registerPlugin('PdfGenerator', {
+        web: () => Promise.resolve().then(function () { return web; }).then((m) => new m.PdfGeneratorWeb()),
+    });
+
+    class PdfGeneratorWeb extends core.WebPlugin {
+        async fromURL(_options) {
+            throw this.unimplemented('fromURL is not available in the web implementation.');
+        }
+        async fromData(_options) {
+            throw this.unimplemented('fromData is not available in the web implementation.');
+        }
+        async getPluginVersion() {
+            return { version: 'web' };
+        }
+    }
+
+    var web = /*#__PURE__*/Object.freeze({
+        __proto__: null,
+        PdfGeneratorWeb: PdfGeneratorWeb
+    });
+
+    exports.PdfGenerator = PdfGenerator;
+
+    return exports;
+
+})({}, capacitorExports);
+//# sourceMappingURL=plugin.js.map
