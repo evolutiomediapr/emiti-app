@@ -19,6 +19,8 @@
     "twilio": "^5.0.0"
   },
   "scripts": {
-    "capacitor:copy:after": "node scripts/fix-packageclasslist.js"
+    "capacitor:copy:after": "node scripts/fix-packageclasslist.js",
+    "capacitor:update:after": "node scripts/fix-packageclasslist.js",
+    "capacitor:sync:after": "node scripts/fix-packageclasslist.js"
   }
 }
