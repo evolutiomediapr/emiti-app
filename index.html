@@ -1113,7 +1113,7 @@ async function migrateLegacyState(uid) {
       (data || []).forEach(r => { try { const o = JSON.parse(r.data)?.inv?.userId; if (o) owners.add(o); } catch(e){} });
       if (owners.size && !owners.has(uid)) {
         // Datos de otro usuario: no adoptar y dejarlos para su dueño real.
-        console.log('[migración] datos legados pertenecen a otro usuario — no se adoptan');
+        console.warn('[migración] datos legados pertenecen a otro usuario — no se adoptan');
         return 'done';
       }
     }
@@ -1380,12 +1380,10 @@ async function authLogin() {
       setTimeout(() => reject(new Error('Conexión lenta. Verifica tu señal e intenta de nuevo.')), 30000)
     );
 
-    console.log('[Auth] Iniciando signInWithPassword…');
     const { data, error } = await Promise.race([
       supa.auth.signInWithPassword({ email, password: pass }),
       timeout
     ]);
-    console.log('[Auth] signInWithPassword completó', { error: error?.message });
 
     resetBtn();
     if (error) {
@@ -1398,7 +1396,6 @@ async function authLogin() {
       return;
     }
 
-    console.log('[Auth] Login OK, cargando perfil…');
     CURRENT_USER = data.user;
     saveRememberedEmail(email);
 
@@ -1410,7 +1407,6 @@ async function authLogin() {
     } catch (pe) {
       console.warn('[Auth] loadProfile tardó demasiado, continuando sin perfil:', pe.message);
     }
-    console.log('[Auth] Perfil cargado, abriendo app…');
 
     hideAuthModal();
     await loadUserState(data.user.id);
@@ -2223,7 +2219,6 @@ function getForm() {
 }
 
 async function saveDoc() {
-  console.log('[saveDoc] inicio, CURRENT_USER:', CURRENT_USER?.id, 'is_anonymous:', CURRENT_USER?.is_anonymous);
   const d=getForm();
   if(!d.client){toast('Escribe el nombre del cliente');return;}
   if(!d.lines.length){toast('Agrega al menos un servicio');return;}
@@ -2692,14 +2687,12 @@ async function syncInvToSupabase(inv) {
     client_email: inv.email || null,
     data: JSON.stringify({ inv: { ...inv, userId: CURRENT_USER?.id }, biz: B, logo: LOGO, payments: PAYMENTS })
   };
-  console.log('[sync] iniciando — inv.id:', inv.id, '| supaId previo:', inv.supaId || 'ninguno', '| user:', CURRENT_USER?.id, '| anon:', CURRENT_USER?.is_anonymous);
   if (inv.supaId) {
     const { error } = await Promise.race([
       supa.from('invoices').update(payload).eq('id', inv.supaId),
       timeout
     ]);
     if (error) { console.error('[sync] update error:', error.message, error); throw new Error(error.message); }
-    console.log('[sync] update OK — supaId:', inv.supaId, '| enlace:', `https://emiti-app.vercel.app/invoice/${inv.slug || inv.num}`);
   } else {
     const { data, error } = await Promise.race([
       supa.from('invoices').insert(payload).select('id').single(),
@@ -2708,7 +2701,6 @@ async function syncInvToSupabase(inv) {
     if (error) { console.error('[sync] insert error:', error.message, error); throw new Error(error.message); }
     if (!data) throw new Error('Supabase no devolvió el ID del documento');
     inv.supaId = data.id;
-    console.log('[sync] insert OK — supaId asignado:', inv.supaId, '| enlace:', `https://emiti-app.vercel.app/invoice/${inv.slug || inv.num}`);
   }
 }
 
@@ -3855,7 +3847,7 @@ window.onload = async () => {
         // Sesión anónima legada (pre-v1.5): purgarla — ya no se crean y los
         // usuarios anónimos se eliminaron de la BD. setTimeout evita el
         // deadlock de llamar auth.* dentro del callback de onAuthStateChange.
-        console.log('[auth] sesión anónima legada — cerrándola');
+        console.warn('[auth] sesión anónima legada — cerrándola');
         CURRENT_USER = null;
         setTimeout(() => supa.auth.signOut().catch(e => console.warn('[auth] signOut anon:', e.message)), 0);
         updateTopbarAuth();
@@ -3909,7 +3901,7 @@ window.onload = async () => {
       } else {
         // Sesión anónima legada (pre-v1.5): purgarla para que el dispositivo
         // deje de refrescar tokens de usuarios ya eliminados de la BD.
-        console.log('[auth] sesión anónima legada — cerrándola');
+        console.warn('[auth] sesión anónima legada — cerrándola');
         CURRENT_USER = null;
         await supa.auth.signOut().catch(e => console.warn('[auth] signOut anon:', e.message));
         updateTopbarAuth();
