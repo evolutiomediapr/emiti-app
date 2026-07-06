@@ -95,6 +95,17 @@ textarea{resize:vertical;min-height:66px;line-height:1.5}
 .plan-usage{margin-top:.3rem}
 .plan-usage b{color:var(--ink2)}
 .plan-usage a{color:var(--green);font-weight:700;text-decoration:none}
+
+/* CONNECT (métodos de pago) */
+.connect-box{border:1px solid var(--bd);border-radius:var(--rs);padding:.8rem .9rem;margin-bottom:.9rem;background:var(--bg)}
+.cx-row{display:flex;align-items:center;justify-content:space-between;gap:.6rem}
+.cx-name{font-size:.85rem;font-weight:700;color:var(--ink)}
+.cx-badge{font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.07em;padding:.22rem .55rem;border-radius:20px;white-space:nowrap}
+.cx-badge.on{background:var(--gl);color:var(--green)}
+.cx-badge.mid{background:var(--al);color:var(--am)}
+.cx-note{font-size:.72rem;color:var(--mu);margin-top:.45rem;line-height:1.45}
+.cx-links{display:flex;gap:1rem;margin-top:.5rem}
+.cx-links a{font-size:.72rem;color:var(--green);font-weight:700;text-decoration:none}
 .rh{display:flex;align-items:center;justify-content:space-between;margin-bottom:.7rem}
 .rl{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--mu)}
 
@@ -745,8 +756,9 @@ table.pt tr:last-child td{border-bottom:none}
     <!-- PAGOS -->
     <div class="block">
       <div class="bh"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:5px"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>Métodos de Pago</div>
+      <div id="stripeConnectBox"></div>
       <div class="f"><label>Link de Stripe</label><input type="url" id="set-stripe" placeholder="https://buy.stripe.com/..."></div>
-      <div class="f"><label>Link de PayPal.me</label><input type="url" id="set-paypal" placeholder="https://paypal.me/tunombre"></div>
+      <div class="f"><label>Link de PayPal.me (método básico)</label><input type="url" id="set-paypal" placeholder="https://paypal.me/tunombre"></div>
       <button class="btn bg bsm" onclick="savePayments()" style="width:100%">Guardar métodos de pago</button>
     </div>
 
@@ -1632,6 +1644,86 @@ async function loadProfile() {
   const { data, error } = await supa.from('profiles').select('*').eq('id', CURRENT_USER.id).single();
   if (!error && data) USER_PROFILE = data;
   updatePlanBar();
+  renderStripeConnect();
+  // Retorno del onboarding de Stripe: con la sesión ya lista, consulta el
+  // estado real (el webhook account.updated puede tardar unos segundos).
+  if (window._stripeConnectReturn) {
+    window._stripeConnectReturn = false;
+    refreshStripeConnect();
+  }
+}
+
+// ── STRIPE CONNECT (C1: conexión y estados; el cobro con fee llega en C2) ──
+function renderStripeConnect() {
+  const box = document.getElementById('stripeConnectBox');
+  if (!box) return;
+  if (!CURRENT_USER || CURRENT_USER.is_anonymous) { box.innerHTML = ''; return; }
+  const st = USER_PROFILE.stripe_connect_status;
+  if (st === 'active') {
+    box.innerHTML = `<div class="connect-box">
+      <div class="cx-row"><span class="cx-name">Stripe</span><span class="cx-badge on">Conectado ✓</span></div>
+      <div class="cx-note">Tus facturas aceptan pago con tarjeta directo a tu cuenta.</div>
+      <div class="cx-links">
+        <a href="https://dashboard.stripe.com" target="_blank" rel="noopener">Abrir dashboard de Stripe</a>
+      </div>
+    </div>`;
+  } else if (st === 'pending' || st === 'restricted') {
+    box.innerHTML = `<div class="connect-box">
+      <div class="cx-row"><span class="cx-name">Stripe</span><span class="cx-badge mid">Verificación pendiente</span></div>
+      <div class="cx-note">Stripe necesita completar la verificación de tu cuenta antes de habilitar los cobros.</div>
+      <button class="btn bg bsm" style="width:100%;margin-top:.6rem" onclick="connectStripe(this)">Continuar verificación</button>
+    </div>`;
+  } else {
+    box.innerHTML = `<div class="connect-box">
+      <div class="cx-row"><span class="cx-name">Stripe</span></div>
+      <div class="cx-note">Cobra con tarjeta directo a tu banco. Fee de plataforma: 1% por cobro (0.5% con Pro).</div>
+      <button class="btn bg bsm" style="width:100%;margin-top:.6rem" onclick="connectStripe(this)">Conectar cuenta de Stripe</button>
+    </div>`;
+  }
+}
+
+async function connectStripe(btn) {
+  const orig = btn.textContent;
+  btn.textContent = 'Abriendo…'; btn.disabled = true;
+  try {
+    const { data: { session } } = await supa.auth.getSession();
+    if (!session) throw new Error('Inicia sesión de nuevo');
+    const res = await fetch('/api/connect-stripe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body: JSON.stringify({ action: 'link' })
+    });
+    const { url, error } = await res.json();
+    if (error) throw new Error(error);
+    if (window.Capacitor && Capacitor.isNativePlatform()) {
+      await Capacitor.Plugins.Browser.open({ url });
+      btn.textContent = orig; btn.disabled = false;
+    } else {
+      window.location.href = url;
+    }
+  } catch (e) {
+    toast('Error al conectar con Stripe: ' + e.message);
+    btn.textContent = orig; btn.disabled = false;
+  }
+}
+
+async function refreshStripeConnect() {
+  try {
+    const { data: { session } } = await supa.auth.getSession();
+    if (!session) return;
+    const res = await fetch('/api/connect-stripe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body: JSON.stringify({ action: 'status' })
+    });
+    const { status } = await res.json();
+    if (!status) return;
+    USER_PROFILE.stripe_connect_status = status;
+    renderStripeConnect();
+    toast(status === 'active' ? 'Cuenta de Stripe conectada ✓' : 'Verificación de Stripe en proceso');
+  } catch (e) {
+    console.warn('[connect] status:', e.message);
+  }
 }
 
 // ── PLAN BADGE (junto al saludo) + línea de uso Free ──
@@ -2062,7 +2154,7 @@ function go(name) {
   if (name==='gastos') enterGastos();
   if (name==='clientes') renderClients();
   if (name==='historial') { buildHistFilters(); renderHistorial(); }
-  if (name==='ajustes') { fillSettings(); syncBizSig(); syncLogo(); renderSvcMgr(); }
+  if (name==='ajustes') { fillSettings(); syncBizSig(); syncLogo(); renderSvcMgr(); renderStripeConnect(); }
   if (name==='nueva') { resetForm(); addLi(); setTimeout(()=>initCanvas('bizSigCanvas'),150); }
 }
 
@@ -3919,6 +4011,14 @@ window.onload = async () => {
   // Link directo de email en web: /auth/confirm?token_hash=…&type=…
   // (el rewrite de vercel.json sirve index.html en esa ruta)
   const qp = new URLSearchParams(location.search);
+
+  // Retorno del onboarding de Stripe Connect (?stripe_connect=return|refresh).
+  // Solo se marca el flag: loadProfile lo consume cuando la sesión está lista.
+  if (qp.get('stripe_connect')) {
+    if (qp.get('stripe_connect') === 'return') window._stripeConnectReturn = true;
+    history.replaceState({}, '', '/');
+  }
+
   const tokenHash = qp.get('token_hash');
   if (tokenHash) {
     const linkType = qp.get('type') || 'signup';

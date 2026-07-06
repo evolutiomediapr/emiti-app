@@ -22,12 +22,27 @@ const handler = async (req, res) => {
   const rawBody = await getRawBody(req);
   const sig = req.headers['stripe-signature'];
 
-  let event;
-  try {
-    event = stripe.webhooks.constructEvent(rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
-  } catch (err) {
-    console.error('Webhook signature error:', err.message);
-    return res.status(400).json({ error: `Webhook error: ${err.message}` });
+  // Dos endpoints de Stripe apuntan a esta URL con secrets distintos:
+  // el de cuenta (suscripciones Pro) y el de Connect (account.updated de
+  // cuentas conectadas). Se intenta verificar con ambos.
+  const secrets = [
+    process.env.STRIPE_WEBHOOK_SECRET,
+    process.env.STRIPE_CONNECT_WEBHOOK_SECRET,
+  ].filter(Boolean);
+
+  let event = null;
+  let lastErr = null;
+  for (const secret of secrets) {
+    try {
+      event = stripe.webhooks.constructEvent(rawBody, sig, secret);
+      break;
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  if (!event) {
+    console.error('Webhook signature error:', lastErr?.message);
+    return res.status(400).json({ error: `Webhook error: ${lastErr?.message}` });
   }
 
   const subscription = event.data.object;
@@ -90,6 +105,22 @@ const handler = async (req, res) => {
           .eq('stripe_customer_id', subscription.customer);
         console.log(`Plan degradado a Free para customer: ${subscription.customer}`);
         break;
+
+      // Connect: estado de onboarding de la cuenta conectada del usuario.
+      // Fuente de verdad del badge Conectado/Pendiente en Métodos de Pago.
+      case 'account.updated': {
+        const acct = event.data.object;
+        const status = (acct.charges_enabled && acct.details_submitted)
+          ? 'active'
+          : (acct.requirements?.disabled_reason ? 'restricted' : 'pending');
+        const { error: connErr } = await supabase
+          .from('profiles')
+          .update({ stripe_connect_status: status })
+          .eq('stripe_connect_id', acct.id);
+        if (connErr) console.error('Error actualizando connect status:', connErr.message);
+        else console.log(`Connect ${acct.id} -> ${status}`);
+        break;
+      }
     }
   } catch (err) {
     console.error('DB update error:', err);
