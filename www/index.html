@@ -4383,9 +4383,9 @@ window.onload = async () => {
 <div id="photoSourceSheet" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;align-items:flex-end;justify-content:center" onclick="if(event.target===this)closePhotoSheet()">
   <div style="background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:500px;padding:1.2rem 1.2rem 2rem">
     <div style="text-align:center;font-weight:600;margin-bottom:1rem;font-size:.95rem;color:var(--ink)">Agregar Foto</div>
-    <!-- Cámara REAL (@capacitor/camera, G3) — solo scope 'receipt'; los otros
-         scopes (doc/line) siguen sin cámara hasta decidir extenderla -->
-    <button id="photoSheetCameraBtn" onclick="captureReceiptPhoto()" style="display:none;width:100%;padding:.85rem;border:none;background:var(--gxl);color:var(--green);border-radius:10px;font-size:.95rem;font-weight:600;margin-bottom:.6rem;cursor:pointer"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:.4rem"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>Tomar foto</button>
+    <!-- Cámara REAL (@capacitor/camera) — scope 'receipt' (Gastos) y doc/line
+         (facturas/cotizaciones); captureFromSheet() enruta por scope. -->
+    <button id="photoSheetCameraBtn" onclick="captureFromSheet()" style="display:none;width:100%;padding:.85rem;border:none;background:var(--gxl);color:var(--green);border-radius:10px;font-size:.95rem;font-weight:600;margin-bottom:.6rem;cursor:pointer"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:.4rem"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>Tomar foto</button>
     <button onclick="pickPhotoFrom('gallery')" style="width:100%;padding:.85rem;border:none;background:var(--gxl);color:var(--green);border-radius:10px;font-size:.95rem;font-weight:600;margin-bottom:.6rem;cursor:pointer">Photo Library</button>
     <button onclick="pickPhotoFrom('files')" style="width:100%;padding:.85rem;border:none;background:var(--gxl);color:var(--green);border-radius:10px;font-size:.95rem;font-weight:600;margin-bottom:.8rem;cursor:pointer">Choose File</button>
     <button onclick="closePhotoSheet()" style="width:100%;padding:.75rem;border:none;background:#f0f0f0;color:#666;border-radius:10px;font-size:.9rem;cursor:pointer">Cancelar</button>
@@ -4437,8 +4437,8 @@ async function pickLogoFromFiles() {
 // ── DOCUMENT PHOTOS · motor (selección sin cámara → compresión → subida) ──
 // Logo/firma SIGUEN base64 inline; esto es SOLO para las fotos del documento,
 // que viven en Supabase Storage (bucket public-read "document-photos").
-const MAX_DOC_PHOTOS = 5;    // fotos generales por documento
-const MAX_LINE_PHOTOS = 4;   // fotos por línea
+const MAX_DOC_PHOTOS = 20;   // fotos generales por documento (paridad con Joist)
+const MAX_LINE_PHOTOS = 4;   // fotos por línea (coincide con Joist)
 
 // photoDocId perezoso: solo se crea al subir la 1ra foto de un doc que no lo tiene.
 function ensurePhotoDocId() { if (!PHOTO_DOC_ID) PHOTO_DOC_ID = uuid(); return PHOTO_DOC_ID; }
@@ -4558,7 +4558,23 @@ async function addPhotos(scope, lid, source) {
   if (!session || session.user.is_anonymous) { toast('Inicia sesión para agregar fotos'); return; }
 
   let blobs;
-  try { blobs = await pickPhotoBlobs(source); } catch (_) { return; }
+  if (source === 'camera') {
+    // Cámara nativa (@capacitor/camera) para documento/línea — MISMO pipeline que
+    // los recibos de Gastos: base64 -> Blob -> compress -> upload. Una foto por captura.
+    try {
+      const { Camera } = Capacitor.Plugins;
+      const photo = await Camera.getPhoto({ source: 'CAMERA', resultType: 'base64', quality: 90, correctOrientation: true, saveToGallery: false });
+      if (!photo?.base64String) return;
+      blobs = [base64ToBlob(photo.base64String, 'image/jpeg')];
+    } catch (e) {
+      const msg = e.message || '';
+      if (/denied/i.test(msg)) toast('Habilita la cámara en Ajustes > Emiti para tomar fotos');
+      else if (!/cancel/i.test(msg)) { console.warn('[photo] cámara:', msg); toast('No se pudo tomar la foto'); }
+      return;
+    }
+  } else {
+    try { blobs = await pickPhotoBlobs(source); } catch (_) { return; }
+  }
   if (!blobs || !blobs.length) return;
   if (blobs.length > remaining) toast(`Solo caben ${remaining} más; se usarán esas`);
   blobs = blobs.slice(0, remaining);
@@ -4642,8 +4658,8 @@ let _photoSheetScope = null, _photoSheetLid = null;
 function openPhotoSheet(scope, lid) {
   if (window.Capacitor && Capacitor.isNativePlatform()) {
     _photoSheetScope = scope; _photoSheetLid = lid || null;
-    // Cámara solo para recibos (openReceiptSheet la muestra)
-    document.getElementById('photoSheetCameraBtn').style.display = 'none';
+    // Cámara habilitada para documento/línea (además de recibos).
+    document.getElementById('photoSheetCameraBtn').style.display = 'block';
     document.getElementById('photoSourceSheet').style.display = 'flex';
   } else {
     addPhotos(scope, lid);   // web: <input type=file> directo (sin sheet)
@@ -4655,6 +4671,13 @@ function pickPhotoFrom(source) {
   // El sheet es compartido: scope 'receipt' viene de openReceiptSheet (Gastos)
   if (_photoSheetScope === 'receipt') { addReceiptPhoto(source); return; }
   addPhotos(_photoSheetScope, _photoSheetLid, source);
+}
+
+// Botón "Tomar foto" del sheet compartido: enruta por scope (recibo vs doc/línea).
+function captureFromSheet() {
+  if (_photoSheetScope === 'receipt') { captureReceiptPhoto(); return; } // ya cierra el sheet
+  closePhotoSheet();
+  addPhotos(_photoSheetScope, _photoSheetLid, 'camera');
 }
 
 // CTA de upgrade del feature (no es el límite mensual): abre el modal Pro.

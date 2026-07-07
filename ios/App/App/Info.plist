@@ -48,9 +48,9 @@
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Emiti necesita acceso a tu galería para subir el logo de tu negocio.</string>
+	<string>Emiti necesita acceso a tu galería para subir el logo de tu negocio y agregar fotos a tus facturas, cotizaciones y recibos.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>Emiti usa la cámara para fotografiar recibos de gastos.</string>
+	<string>Emiti usa la cámara para fotografiar recibos de gastos y documentar tus facturas y cotizaciones.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Emiti usa este permiso para guardar en tu galería las fotos de recibos, si eliges guardarlas.</string>
 	<key>CFBundleURLTypes</key>
