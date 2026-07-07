@@ -219,13 +219,15 @@ function renderDoc(inv, biz, logo, payments) {
   const isPaid = inv.status === 'paid' || new URLSearchParams(window.location.search).get('paid') === '1';
 
   let payHtml = '';
-  if (payments && !isPaid) {
+  if (!isPaid) {
+    // El botón de tarjeta ya NO sale del snapshot payments.stripe (link manual
+    // legado, muerto en C2): se inyecta async según el estado real de la
+    // cuenta conectada del dueño (addCardButtonIfAvailable). PayPal.me sigue
+    // siendo el método básico del snapshot.
     const btns = [];
-    if (payments.stripe) btns.push(`<button class="dpay-btn stripe" id="stripe-pay-btn" onclick="startStripeCheckout()">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>Pagar con tarjeta</button>`);
-    if (payments.paypal) btns.push(`<a class="dpay-btn paypal" href="https://paypal.me/${payments.paypal}" target="_blank">
+    if (payments && payments.paypal) btns.push(`<a class="dpay-btn paypal" href="https://paypal.me/${payments.paypal}" target="_blank">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11l5 5 5-5M7 6l5 5 5-5"/></svg>PayPal</a>`);
-    if (btns.length) payHtml = `<div class="dpay">${btns.join('')}</div>`;
+    payHtml = `<div class="dpay" id="dpay"${btns.length ? '' : ' style="display:none"'}>${btns.join('')}</div>`;
   }
 
   const statusLabel = isPaid
@@ -370,22 +372,41 @@ function renderDoc(inv, biz, logo, payments) {
   document.title = `${label} ${inv.num} — ${biz.biz || 'Emiti'}`;
   document.getElementById('loading').style.display = 'none';
   wrap.style.display = 'block';
+
+  if (!isPaid) addCardButtonIfAvailable();
+}
+
+// Muestra "Pagar con tarjeta" solo si el dueño tiene su cuenta de Stripe
+// conectada y activa (lo resuelve el server con service_role; el perfil de
+// otro usuario no es legible desde el rol anon del visor).
+async function addCardButtonIfAvailable() {
+  try {
+    const res = await fetch('/api/pay-invoice', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ invoiceId: CURRENT_INVOICE_ID, action: 'methods' })
+    });
+    const { card } = await res.json();
+    if (!card) return;
+    const dpay = document.getElementById('dpay');
+    if (!dpay) return;
+    dpay.insertAdjacentHTML('afterbegin', `<button class="dpay-btn stripe" id="stripe-pay-btn" onclick="startStripeCheckout()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>Pagar con tarjeta</button>`);
+    dpay.style.display = '';
+  } catch (e) {
+    console.warn('[invoice] methods:', e.message);
+  }
 }
 
 async function startStripeCheckout() {
   const btn = document.getElementById('stripe-pay-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Redirigiendo…'; }
   try {
-    const label = CURRENT_INVOICE.type === 'estimate' ? 'Cotización' : 'Factura';
     const res = await fetch('/api/pay-invoice', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        invoiceId: CURRENT_INVOICE_ID,
-        amount: CURRENT_INVOICE.total,
-        description: `${label} ${CURRENT_INVOICE.num || ''}`.trim(),
-        clientEmail: CURRENT_INVOICE.email || ''
-      })
+      // Solo el id: monto, descripción y dueño se resuelven server-side de la BD
+      body: JSON.stringify({ invoiceId: CURRENT_INVOICE_ID })
     });
     const { url, error } = await res.json();
     if (error) throw new Error(error);
