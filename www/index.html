@@ -1670,6 +1670,10 @@ function renderStripeConnect() {
     box.innerHTML = `<div class="connect-box">
       <div class="cx-row"><span class="cx-name">${STRIPE_WORDMARK}</span><span class="cx-badge on">Conectado ✓</span></div>
       <div class="cx-note">Tus facturas aceptan pago con tarjeta directo a tu cuenta.</div>
+      <div class="cx-fee-row" style="display:flex;align-items:center;justify-content:space-between;gap:.8rem;margin-top:.75rem">
+        <span style="font-size:.72rem;color:var(--mu);line-height:1.4">Pasar la tarifa de procesamiento al cliente<br><span style="opacity:.82">El cliente ve un cargo aparte y tú recibes el total de la factura.</span></span>
+        <button class="switch" id="sw-passfee" role="switch" aria-checked="${USER_PROFILE.pass_processing_fee ? 'true' : 'false'}" aria-label="Pasar tarifa de procesamiento al cliente" onclick="togglePassFee(this)"><span class="switch-thumb"></span></button>
+      </div>
       <div class="cx-links">
         <a href="https://dashboard.stripe.com" target="_blank" rel="noopener">Abrir dashboard de Stripe</a>
       </div>
@@ -1711,6 +1715,28 @@ async function connectStripe(btn) {
   } catch (e) {
     toast('Error al conectar con Stripe: ' + e.message);
     btn.textContent = orig; btn.disabled = false;
+  }
+}
+
+// Toggle "pasar tarifa al cliente": escribe la preferencia en profiles (RLS
+// "update own"). pay-invoice.js la lee server-side para inflar el checkout.
+async function togglePassFee(btn) {
+  if (btn.getAttribute('aria-disabled') === 'true') return;
+  const next = btn.getAttribute('aria-checked') !== 'true';
+  btn.setAttribute('aria-checked', next ? 'true' : 'false');
+  btn.setAttribute('aria-disabled', 'true'); // evita doble-tap mientras guarda
+  try {
+    const { error } = await supa.from('profiles')
+      .update({ pass_processing_fee: next })
+      .eq('id', CURRENT_USER.id);
+    if (error) throw error;
+    USER_PROFILE.pass_processing_fee = next;
+    toast(next ? 'El cliente cubrirá la tarifa de procesamiento ✓' : 'Tú cubrirás la tarifa de procesamiento');
+  } catch (e) {
+    btn.setAttribute('aria-checked', next ? 'false' : 'true'); // revertir si falla
+    toast('No se pudo guardar: ' + e.message);
+  } finally {
+    btn.removeAttribute('aria-disabled');
   }
 }
 

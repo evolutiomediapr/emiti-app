@@ -365,6 +365,10 @@ function renderDoc(inv, biz, logo, payments) {
         ${(inv.dsc||0) > 0 ? `<div class="drow"><span>Descuento</span><span>- $${parseFloat(inv.dsc).toFixed(2)}</span></div>` : ''}
         ${(inv.ivu||0) > 0 ? `<div class="drow"><span>Impuestos (${inv.ivu}%)</span><span>$${parseFloat(inv.tax||0).toFixed(2)}</span></div>` : ''}
         <div class="dgrand"><span>Total</span><span>$${parseFloat(inv.total||0).toFixed(2)}</span></div>
+        <!-- Cargo por procesamiento: lo rellena addCardButtonIfAvailable() SOLO si el
+             negocio activó pass_processing_fee y hay un cargo estimado > 0 (mismo
+             criterio que el aviso pre-checkout). data-total = total de la factura (T). -->
+        <div id="feeRows" data-total="${parseFloat(inv.total||0)}"></div>
       </div>
 
       ${inv.notes ? `<div class="dnotes">${esc(inv.notes)}</div>` : ''}
@@ -399,13 +403,28 @@ async function addCardButtonIfAvailable() {
       console.warn('[invoice] methods HTTP', res.status);
       return;
     }
-    const { card } = await res.json();
+    const { card, passThrough, feeEstimate } = await res.json();
     if (!card) return;
     const dpay = document.getElementById('dpay');
     if (!dpay) return;
+    // Aviso de transparencia: si el negocio pasa la tarifa al cliente, se le
+    // muestra el estimado del cargo ANTES de redirigir al Checkout de Stripe.
+    const feeNote = (passThrough && feeEstimate > 0)
+      ? `<div style="font-size:12px;color:#6b7280;margin-top:6px;line-height:1.4">Pagar con tarjeta añade un cargo por procesamiento de ~$${Number(feeEstimate).toFixed(2)}.</div>`
+      : '';
     dpay.insertAdjacentHTML('afterbegin', `<button class="dpay-btn stripe" id="stripe-pay-btn" onclick="startStripeCheckout()">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>Pagar con tarjeta</button>`);
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>Pagar con tarjeta</button>${feeNote}`);
     dpay.style.display = '';
+    // Desglose en los totales de la factura: fila del cargo + "Total con tarjeta".
+    // Mismo criterio condicional que el aviso pre-checkout (passThrough && fee > 0).
+    const feeRows = document.getElementById('feeRows');
+    if (passThrough && feeEstimate > 0 && feeRows) {
+      const t = parseFloat(feeRows.dataset.total || '0');
+      const grand = t + Number(feeEstimate);
+      feeRows.innerHTML =
+        `<div class="drow"><span>Cargo por procesamiento (tarjeta)</span><span>$${Number(feeEstimate).toFixed(2)}</span></div>`
+      + `<div class="dgrand"><span>Total con tarjeta</span><span>$${grand.toFixed(2)}</span></div>`;
+    }
   } catch (e) {
     console.warn('[invoice] methods:', e.message);
   }
