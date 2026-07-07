@@ -72,6 +72,10 @@ const handler = async (req, res) => {
             try { parsed = JSON.parse(row.data); } catch { break; }
             parsed.inv.status = 'paid';
             if (!parsed.inv.paidDate) parsed.inv.paidDate = new Date().toISOString().split('T')[0];
+            // Atestación server-side de pago con tarjeta: SOLO el webhook
+            // (firma verificada) escribe este valor. La app lo usa para
+            // bloquear la reversión manual del estado pagado.
+            parsed.inv.paidVia = 'stripe';
             const { error: updateErr } = await supabase
               .from('invoices')
               .update({ data: JSON.stringify(parsed) })

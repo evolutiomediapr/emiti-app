@@ -126,6 +126,7 @@ textarea{resize:vertical;min-height:66px;line-height:1.5}
 .switch[aria-checked="true"]{background:var(--green)}
 .switch-thumb{position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.28);transition:transform .18s}
 .switch[aria-checked="true"] .switch-thumb{transform:translateX(18px)}
+.switch[aria-disabled="true"]{opacity:.45;cursor:not-allowed}
 .sw-label{font-size:.7rem;font-weight:700;color:var(--ink2)}
 
 /* FORM BLOCKS */
@@ -2511,9 +2512,14 @@ function showPrev(inv) {
   if (inv.type==='estimate') {
     _conv.style.display=''; _paid.style.display='none';
   } else {
-    _conv.style.display='none'; _paid.style.display='';
+    _conv.style.display='none';
     const isPaid = inv.status==='paid';
-    _paid.textContent = isPaid ? '↩ Marcar Pendiente' : '✓ Marcar Pagada';
+    // Stripe-paid: sin botón — el preview ya muestra el banner "Pago Recibido"
+    // y el guard de toggleStatus bloquea la reversión de todos modos.
+    _paid.style.display = (isPaid && inv.paidVia==='stripe') ? 'none' : '';
+    _paid.innerHTML = isPaid
+      ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:4px"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>Marcar Pendiente'
+      : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:4px"><polyline points="20 6 9 17 4 12"/></svg>Marcar Pagada';
     _paid.className = isPaid ? 'btn bam' : 'btn bok';
   }
   document.getElementById('previewModal').classList.add('open');
@@ -2659,9 +2665,12 @@ function icard(inv) {
   const swLabel   = inv.type==='estimate' ? 'Convertir a Factura' : 'Pagada';
   const swOn      = inv.type==='invoice' && inv.status==='paid';   // estimate: siempre OFF (one-way)
   const swHandler = inv.type==='estimate' ? `convertToInvoice(${inv.id})` : `togglePaidFromList(${inv.id})`;
+  // Pago Stripe: switch visualmente bloqueado; el tap cae al guard de
+  // togglePaidFromList, que explica el porqué con un toast.
+  const swLocked  = swOn && inv.paidVia==='stripe';
   const switchEl  = `<div style="display:flex;gap:.5rem;align-items:center">
       <span class="sw-label">${swLabel}</span>
-      <button class="switch" role="switch" aria-checked="${swOn}" aria-label="${swLabel}" onclick="event.stopPropagation();${swHandler}"><span class="switch-thumb"></span></button>
+      <button class="switch" role="switch" aria-checked="${swOn}" aria-disabled="${swLocked}" aria-label="${swLabel}" onclick="event.stopPropagation();${swHandler}"><span class="switch-thumb"></span></button>
     </div>`;
   return `<div class="ic2 ${inv.status}" onclick='openInv(${inv.id})' data-id="${inv.id}">
     <div class="ict">
@@ -2682,6 +2691,13 @@ function openInv(id) {
 
 function toggleStatus(id) {
   const i=INV.find(x=>x.id===id); if(!i) return;
+  // Pago confirmado por Stripe (paidVia lo escribe SOLO el webhook): revertirlo
+  // no devuelve el dinero ya movido a la cuenta conectada — sería un registro
+  // contable falso. La vía correcta es un refund en Stripe.
+  if (i.status==='paid' && i.paidVia==='stripe') {
+    toast('Pagada con tarjeta vía Stripe — este pago no se puede revertir manualmente');
+    return;
+  }
   const newStatus = i.status==='paid'?'pending':'paid';
   i.status = newStatus;
   if (newStatus==='paid' && !i.paidDate) i.paidDate = new Date().toISOString().split('T')[0];
@@ -2732,6 +2748,13 @@ function convertToInvoice(id) {
 // flujo de pago del editor (toggleStatus). Al revertir limpia paidDate.
 function togglePaidFromList(id){
   const i=INV.find(x=>x.id===id); if(!i) return;
+  // Guard ANTES del confirm y del i.paidDate=null: sin esto el confirm se
+  // mostraría en vano y la limpieza de paidDate corrompería el registro
+  // aunque toggleStatus rechace la reversión.
+  if(i.status==='paid' && i.paidVia==='stripe'){
+    toast('Pagada con tarjeta vía Stripe — este pago no se puede revertir manualmente');
+    return;
+  }
   const goingPaid = i.status!=='paid';
   if(!confirm(goingPaid
       ? '¿Marcar esta factura como pagada?'
@@ -2751,13 +2774,15 @@ function pactTogglePaid() {
 }
 function save(){localStorage.setItem(skey('fpr4_inv'),JSON.stringify(INV));}
 
-// Pull minimal nube -> local: el webhook de Stripe marca 'paid' en la fila de
-// la nube y el sync normal (local -> nube, wholesale) nunca lo traería — y lo
-// pisaría en el próximo push. Política "paid gana": solo promueve
-// pending->paid (status + paidDate); jamás degrada un paid local.
+// Pull minimal nube -> local: el webhook de Stripe marca 'paid' (+ paidVia)
+// en la fila de la nube y el sync normal (local -> nube, wholesale) nunca lo
+// traería — y lo pisaría en el próximo push. Política "paid gana": solo
+// promueve pending->paid (status + paidDate + paidVia); jamás degrada un paid
+// local. También incluye facturas ya paid sin paidVia local, para que el flag
+// del webhook llegue retroactivamente a dispositivos que ya vieron el pago.
 async function refreshPaidStatuses() {
   if (!supa || !CURRENT_USER || CURRENT_USER.is_anonymous) return;
-  const candidates = INV.filter(i => i.supaId && i.type === 'invoice' && i.status !== 'paid');
+  const candidates = INV.filter(i => i.supaId && i.type === 'invoice' && (i.status !== 'paid' || !i.paidVia));
   if (!candidates.length) return;
   const { data, error } = await supa.from('invoices').select('id,data').in('id', candidates.map(i => i.supaId));
   if (error) { console.warn('[refreshPaid]', error.message); return; }
@@ -2766,10 +2791,16 @@ async function refreshPaidStatuses() {
     let cloud; try { cloud = JSON.parse(r.data)?.inv; } catch (e) { return; }
     if (cloud?.status !== 'paid') return;
     const local = INV.find(i => i.supaId === r.id);
-    if (!local || local.status === 'paid') return;
-    local.status = 'paid';
-    local.paidDate = cloud.paidDate || new Date().toISOString().split('T')[0];
-    changed = true;
+    if (!local) return;
+    if (local.status !== 'paid') {
+      local.status = 'paid';
+      local.paidDate = cloud.paidDate || new Date().toISOString().split('T')[0];
+      changed = true;
+    }
+    if (cloud.paidVia && local.paidVia !== cloud.paidVia) {
+      local.paidVia = cloud.paidVia;
+      changed = true;
+    }
   });
   if (changed) { save(); updateDash(); renderAll(); }
 }
