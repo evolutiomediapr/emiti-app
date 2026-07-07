@@ -573,7 +573,10 @@ table.pt tr:last-child td{border-bottom:none}
 
     <!-- MONTHLY CHART -->
     <div class="chart-wrap">
-      <div class="chart-title"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:5px"><rect x="3" y="12" width="4" height="9" rx="1"/><rect x="10" y="7" width="4" height="14" rx="1"/><rect x="17" y="3" width="4" height="18" rx="1"/></svg><span id="chartTitle">Ingresos — este mes</span></div>
+      <div class="chart-title" style="display:flex;align-items:center;justify-content:space-between;gap:.5rem">
+        <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:5px"><rect x="3" y="12" width="4" height="9" rx="1"/><rect x="10" y="7" width="4" height="14" rx="1"/><rect x="17" y="3" width="4" height="18" rx="1"/></svg><span id="chartTitle">Ingresos — este mes</span></span>
+        <a onclick="go('historial')" style="font-size:.66rem;font-weight:600;color:var(--green);cursor:pointer;white-space:nowrap;letter-spacing:0;text-transform:none">Ver historial →</a>
+      </div>
       <div class="chart-filters">
         <button class="cf-btn active" onclick="setChartFilter('month',this)">Este mes</button>
         <button class="cf-btn" onclick="setChartFilter('week',this)">Esta semana</button>
@@ -745,8 +748,8 @@ table.pt tr:last-child td{border-bottom:none}
 
   <!-- CLIENTES -->
   <div class="page" id="page-clientes">
-    <div class="rh" style="margin-bottom:.35rem"><span class="rl">Mis Clientes</span></div>
-    <div style="font-size:.75rem;color:var(--mu);margin-bottom:.8rem">Toca un cliente para ver o compartir su estado de cuenta.</div>
+    <div class="rh" style="margin-bottom:.35rem"><span class="rl">Contactos</span></div>
+    <div style="font-size:.75rem;color:var(--mu);margin-bottom:.8rem">Toca un contacto para ver sus documentos, recurrentes y estado de cuenta.</div>
     <div id="cList"><div class="empty"><div class="ei"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" opacity=".85"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></div><p>Los clientes aparecen aquí<br>cuando creas documentos.</p></div></div>
   </div>
 
@@ -833,8 +836,8 @@ table.pt tr:last-child td{border-bottom:none}
     <button class="nb" id="nb-facturas" onclick="go('facturas')">
       <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg></span>Docs
     </button>
-    <button class="nb" id="nb-historial" onclick="go('historial')">
-      <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="12" width="4" height="9" rx="1"/><rect x="10" y="7" width="4" height="14" rx="1"/><rect x="17" y="3" width="4" height="18" rx="1"/></svg></span>Historial
+    <button class="nb" id="nb-clientes" onclick="go('clientes')">
+      <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></span>Contactos
     </button>
     <button class="nb" id="nb-gastos" onclick="go('gastos')">
       <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2h14v20l-2-1.5L15 22l-2-1.5L11 22l-2-1.5L7 22l-2-1.5z"/><line x1="9" y1="7" x2="15" y2="7"/><line x1="9" y1="11" x2="15" y2="11"/><line x1="9" y1="15" x2="12" y2="15"/></svg></span>Gastos<span class="nb-pro" id="nb-gastos-pro" style="display:none">PRO</span>
@@ -923,6 +926,23 @@ table.pt tr:last-child td{border-bottom:none}
     <h3><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>Cuentas por cobrar</h3>
     <div class="modal-sub">Facturas pendientes que necesitan seguimiento</div>
     <div id="remList"></div>
+  </div>
+</div>
+
+<!-- DETALLE DE CONTACTO (vista derivada; agrupa docs + recurrentes por nombre) -->
+<div class="modal-overlay" id="contactModal">
+  <div class="modal-box" style="position:relative;max-width:640px">
+    <button class="modal-close" onclick="closeContactModal()">✕</button>
+    <h3><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg><span id="contactName"></span></h3>
+    <div class="modal-sub" id="contactMeta"></div>
+    <div style="display:flex;gap:.5rem;margin:.8rem 0;flex-wrap:wrap">
+      <button class="btn bok bsm" onclick="closeContactModal();openStatement(_contactName)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Estado de cuenta</button>
+      <button class="btn bo bsm" onclick="newInvoiceForClient()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Nueva factura</button>
+    </div>
+    <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--mu);margin:.6rem 0 .4rem">Documentos</div>
+    <div id="contactDocs" style="max-height:34vh;overflow:auto"></div>
+    <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--mu);margin:.9rem 0 .4rem">Recurrentes</div>
+    <div id="contactRecur"></div>
   </div>
 </div>
 
@@ -3129,8 +3149,10 @@ function recEstTotal(t) {
   const taxable = Math.max(sub - dsc, 0);
   return taxable + taxable * ivu / 100;
 }
+let _recurRefresh = null;  // refresca la vista de recurrentes abierta (modal global o contacto)
 async function openRecurringList() {
   if (!isProUser()) { openRecurUpsell(); return; }
+  _recurRefresh = openRecurringList;
   const list = document.getElementById('recurList');
   list.innerHTML = '<div style="color:var(--mu);font-size:.85rem;text-align:center;padding:1rem">Cargando…</div>';
   document.getElementById('recurModal').classList.add('open');
@@ -3143,13 +3165,10 @@ async function openRecurringList() {
     list.innerHTML = `<div style="color:var(--red);font-size:.85rem;text-align:center;padding:1rem">Error: ${stmtEsc(e.message)}</div>`;
   }
 }
-function renderRecurringList(rows) {
-  const list = document.getElementById('recurList');
-  if (!rows.length) {
-    list.innerHTML = '<div style="color:var(--mu);font-size:.85rem;text-align:center;padding:1.2rem">No tienes facturas recurrentes.<br>Abre una factura y toca "Hacer recurrente".</div>';
-    return;
-  }
-  list.innerHTML = rows.map(t => `<div class="remind-card">
+// Markup de una fila de plantilla recurrente — compartido por el modal global
+// (openRecurringList) y la sección "Recurrentes" del contacto (misma data, lente distinta).
+function recurRowHTML(t) {
+  return `<div class="remind-card">
     <div class="rc-info">
       <div class="rc-name">${stmtEsc(t.client_name)}</div>
       <div class="rc-meta">$${recEstTotal(t).toFixed(2)} · mensual · próx: ${fd(t.next_run_date)}${t.active ? '' : ' · <span style="color:var(--am);font-weight:700">pausada</span>'}</div>
@@ -3158,13 +3177,21 @@ function renderRecurringList(rows) {
       <button class="btn bo bsm" onclick="toggleRecurring(${t.id}, ${t.active})">${t.active ? 'Pausar' : 'Reanudar'}</button>
       <button class="btn bo bsm" onclick="deleteRecurring(${t.id})">Borrar</button>
     </div>
-  </div>`).join('');
+  </div>`;
+}
+function renderRecurringList(rows) {
+  const list = document.getElementById('recurList');
+  if (!rows.length) {
+    list.innerHTML = '<div style="color:var(--mu);font-size:.85rem;text-align:center;padding:1.2rem">No tienes facturas recurrentes.<br>Abre una factura y toca "Hacer recurrente".</div>';
+    return;
+  }
+  list.innerHTML = rows.map(recurRowHTML).join('');
 }
 async function toggleRecurring(id, active) {
   try {
     const { error } = await supa.from('recurring_invoices').update({ active: !active }).eq('id', id);
     if (error) throw error;
-    openRecurringList();
+    if (_recurRefresh) _recurRefresh();
   } catch (e) { toast('No se pudo actualizar: ' + e.message); }
 }
 async function deleteRecurring(id) {
@@ -3172,10 +3199,63 @@ async function deleteRecurring(id) {
   try {
     const { error } = await supa.from('recurring_invoices').delete().eq('id', id);
     if (error) throw error;
-    openRecurringList();
+    if (_recurRefresh) _recurRefresh();
   } catch (e) { toast('No se pudo borrar: ' + e.message); }
 }
 function closeRecurModal() { document.getElementById('recurModal').classList.remove('open'); }
+
+// ── DETALLE DE CONTACTO (Fase 1, vista DERIVADA: agrupa por nombre; sin entidad) ──
+// Identidad = nombre. docs por i.client===name; recurrentes por client_name===name.
+let _contactName = null, _contactPhone = '', _contactEmail = '';
+function closeContactModal() { document.getElementById('contactModal').classList.remove('open'); }
+function openContact(name) {
+  if (!name) return;
+  _contactName = name;
+  const docs = INV.filter(i => i.client === name);
+  _contactPhone = (docs.find(d => d.phone) || {}).phone || '';
+  _contactEmail = (docs.find(d => d.email) || {}).email || '';
+  document.getElementById('contactName').textContent = name;
+  document.getElementById('contactMeta').textContent = [_contactPhone, _contactEmail].filter(Boolean).join(' · ') || 'Sin teléfono ni email';
+  renderContactDocs(name);
+  renderContactRecurring(name);
+  document.getElementById('contactModal').classList.add('open');
+}
+function renderContactDocs(name) {
+  const host = document.getElementById('contactDocs');
+  const docs = INV.filter(i => i.client === name).sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)); // recientes primero
+  if (!docs.length) { host.innerHTML = '<div style="color:var(--mu);font-size:.8rem;padding:.4rem 0">Sin documentos.</div>'; return; }
+  const lbl = s => s === 'paid' ? 'Pagada' : s === 'partial' ? 'Parcial' : s === 'pending' ? 'Pendiente' : (s || '');
+  host.innerHTML = docs.map(d => `<div class="remind-card" onclick="closeContactModal();openInv(${d.id})" style="cursor:pointer">
+    <div class="rc-info">
+      <div class="rc-name">${stmtEsc(d.num || '')} · ${d.type === 'estimate' ? 'Cotización' : 'Factura'}</div>
+      <div class="rc-meta">${fd(d.date)} · ${lbl(d.status)}</div>
+    </div>
+    <div style="font-weight:700;color:var(--ink);flex-shrink:0">$${(d.total || 0).toFixed(2)}</div>
+  </div>`).join('');
+}
+async function renderContactRecurring(name) {
+  const host = document.getElementById('contactRecur');
+  _recurRefresh = () => openContact(_contactName);  // pausar/borrar refresca el contacto abierto
+  if (!supa || !CURRENT_USER || CURRENT_USER.is_anonymous) { host.innerHTML = '<div style="color:var(--mu);font-size:.8rem;padding:.4rem 0">Inicia sesión para ver recurrentes.</div>'; return; }
+  host.innerHTML = '<div style="color:var(--mu);font-size:.8rem;padding:.4rem 0">Cargando…</div>';
+  try {
+    const { data, error } = await supa.from('recurring_invoices').select('*').eq('client_name', name).order('created_at', { ascending: false });
+    if (error) throw error;
+    const rows = data || [];
+    host.innerHTML = rows.length ? rows.map(recurRowHTML).join('')
+      : '<div style="color:var(--mu);font-size:.8rem;padding:.4rem 0">Ninguna. Abre una factura de este contacto y toca "Hacer recurrente".</div>';
+  } catch (e) {
+    host.innerHTML = `<div style="color:var(--red);font-size:.8rem;padding:.4rem 0">Error: ${stmtEsc(e.message)}</div>`;
+  }
+}
+// Abre el editor prellenado con este contacto. go('nueva') ya hace resetForm()+addLi().
+function newInvoiceForClient() {
+  const name = _contactName; if (!name) return;
+  closeContactModal();
+  go('nueva');
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
+  set('f-cli', name); set('f-tel', _contactPhone); set('f-email', _contactEmail);
+}
 
 // Muestra/oculta el detalle de la config de depósito en el form.
 function toggleDepositUI(){
@@ -3681,7 +3761,7 @@ function renderClients() {
   const map={};
   INV.forEach(i=>{if(!map[i.client])map[i.client]={name:i.client,phone:i.phone,count:0,total:0};map[i.client].count++;map[i.client].total+=i.total;});
   const list=Object.values(map);
-  document.getElementById('cList').innerHTML=list.length?list.map(c=>`<div class="ccard" data-client="${stmtEsc(c.name)}" onclick="openStatement(this.dataset.client)" style="cursor:pointer"><div class="cav">${c.name.charAt(0).toUpperCase()}</div><div><div class="cname">${c.name}</div><div class="cmeta">${c.phone||'Sin teléfono'} · ${c.count} doc${c.count!==1?'s':''} · $${c.total.toFixed(0)}</div></div></div>`).join(''):`<div class="empty"><div class="ei"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" opacity=".85"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></div><p>Los clientes aparecen aquí<br>cuando creas documentos.</p></div>`;
+  document.getElementById('cList').innerHTML=list.length?list.map(c=>`<div class="ccard" data-client="${stmtEsc(c.name)}" onclick="openContact(this.dataset.client)" style="cursor:pointer"><div class="cav">${c.name.charAt(0).toUpperCase()}</div><div><div class="cname">${c.name}</div><div class="cmeta">${c.phone||'Sin teléfono'} · ${c.count} doc${c.count!==1?'s':''} · $${c.total.toFixed(0)}</div></div></div>`).join(''):`<div class="empty"><div class="ei"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" opacity=".85"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></div><p>Los clientes aparecen aquí<br>cuando creas documentos.</p></div>`;
 }
 
 // ── ESTADOS DE CUENTA POR CLIENTE (Pro) ──────────────────────────────────────
