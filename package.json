@@ -19,7 +19,7 @@
     "twilio": "^5.0.0"
   },
   "scripts": {
-    "test": "node test/payments.test.js",
+    "test": "node test/payments.test.js && node test/improve-text.test.js",
     "capacitor:copy:after": "node scripts/fix-packageclasslist.js",
     "capacitor:update:after": "node scripts/fix-packageclasslist.js",
     "capacitor:sync:after": "node scripts/fix-packageclasslist.js"

@@ -144,6 +144,15 @@ textarea{resize:vertical;min-height:66px;line-height:1.5}
 .limk-in{width:48px;padding:.22rem .35rem;font-size:.74rem;text-align:right;background:#fff;border:1px solid var(--bd2);border-radius:6px}
 .limk-hint{color:var(--mu);font-size:.68rem}
 .limk-locked{background:none;border:none;cursor:pointer;display:flex;align-items:center;gap:.35rem;font-size:.72rem;color:var(--mu);padding:0;font-family:inherit}
+/* Mejorar con IA (descripción de línea) */
+.li-ai{margin-top:.4rem}
+.li-ai-btn{background:none;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:.3rem;font-size:.72rem;font-weight:700;color:var(--green);padding:0;font-family:inherit}
+.li-ai-btn:disabled{color:var(--mu);cursor:default}
+.li-ai-btn.locked{color:var(--mu);font-weight:600}
+.li-ai-prev{margin-top:.45rem;background:var(--gxl);border:1px solid var(--bd2);border-radius:var(--rs);padding:.55rem .65rem}
+.li-ai-sug{font-size:.8rem;color:var(--ink);line-height:1.4}
+.li-ai-acts{display:flex;gap:.4rem;margin-top:.5rem;flex-wrap:wrap}
+.li-ai-acts .btn{padding:.28rem .6rem;font-size:.7rem}
 /* breakdown sub-line in the preview */
 .pmk{font-size:.62rem;color:var(--mu);font-weight:400;margin-top:.15rem}
 /* Reportes — barra de filtros Pro */
@@ -2284,6 +2293,11 @@ function addLi(lid) {
       : `<button type="button" class="limk-locked" onclick="markupUpsell()">+ Markup <span class="tpl-pro-badge">PRO</span></button>`}
     <div class="lisub" id="ls${id}">$0.00</div>
   </div>
+  <div class="li-ai" id="liai${id}">
+    ${pro
+      ? `<button type="button" class="li-ai-btn" onclick="improveLineDesc(${id})">✨ Mejorar con IA</button>`
+      : `<button type="button" class="li-ai-btn locked" onclick="openImproveUpsell()">✨ Mejorar con IA <span class="tpl-pro-badge">PRO</span></button>`}
+  </div>
   <div class="ph-strip ph-line" data-lid="${theLid}"></div>`;
   document.getElementById('liItems').appendChild(d);
   renderPhotoStrip('line', theLid);
@@ -2292,6 +2306,73 @@ function addLi(lid) {
 // Non-Pro tapping the markup affordance -> same upgrade modal as templates/color.
 function markupUpsell() { document.getElementById('upgradeModal').classList.add('open'); }
 function rmLi(id) { const el=document.getElementById('li'+id); if(el) el.remove(); calc(); }
+
+// ── MEJORAR CON IA (descripción de línea, Pro) ───────────────────────────────
+// Llama a /api/improve-text (stateless, Haiku 4.5). NUNCA sobrescribe el campo:
+// muestra la sugerencia en una tarjeta y solo "Usar esta" escribe en #ld{id}.
+const _aiSuggest = {};
+function openImproveUpsell() {
+  document.getElementById('upg-title').textContent = 'La mejora con IA es función Pro';
+  document.getElementById('upg-msg').textContent = 'Mejora tus descripciones con IA en español con el plan Pro.';
+  document.getElementById('upgradeModal').classList.add('open');
+}
+async function improveLineDesc(id) {
+  if (!isProUser()) { openImproveUpsell(); return; }
+  const input = document.getElementById('ld' + id); if (!input) return;
+  const text = (input.value || '').trim();
+  if (!text) { toast('Escribe una descripción primero'); return; }
+  const box = document.getElementById('liai' + id);
+  const btn = box?.querySelector('.li-ai-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Mejorando…'; }
+  try {
+    const { data: { session } } = supa ? await supa.auth.getSession() : { data: { session: null } };
+    if (!session || session.user.is_anonymous) { toast('Inicia sesión para usar la IA'); return; }
+    const apiBase = window.Capacitor?.isNativePlatform() ? 'https://emiti-app.vercel.app' : '';
+    const res = await fetch(`${apiBase}/api/improve-text`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body: JSON.stringify({ text, kind: 'line' })
+    });
+    if (res.status === 403) { openImproveUpsell(); return; }
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const d = await res.json();
+    if (!d.improved) throw new Error('sin sugerencia');
+    _aiSuggest[id] = d.improved;
+    renderAiPreview(id, d.improved);
+  } catch (e) {
+    console.warn('[improve] ', e.message);
+    toast('No se pudo mejorar el texto');
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '✨ Mejorar con IA'; }
+  }
+}
+// Tarjeta de preview: usa textContent para la sugerencia (sin riesgo de escape/XSS).
+function renderAiPreview(id, suggestion) {
+  const box = document.getElementById('liai' + id); if (!box) return;
+  box.querySelector('.li-ai-prev')?.remove();
+  const card = document.createElement('div');
+  card.className = 'li-ai-prev';
+  card.innerHTML = `<div class="li-ai-sug"></div>
+    <div class="li-ai-acts">
+      <button type="button" class="btn bok" onclick="applyAiSuggest(${id})">Usar esta</button>
+      <button type="button" class="btn bo" onclick="dismissAiSuggest(${id})">Descartar</button>
+      <button type="button" class="btn bo" onclick="improveLineDesc(${id})">Reintentar</button>
+    </div>`;
+  card.querySelector('.li-ai-sug').textContent = suggestion;
+  box.appendChild(card);
+}
+// ÚNICO punto que sobrescribe la descripción — y solo por acción explícita.
+function applyAiSuggest(id) {
+  const s = _aiSuggest[id]; if (s == null) return;
+  const input = document.getElementById('ld' + id);
+  if (input) { input.value = s; calc(); }
+  dismissAiSuggest(id);
+  toast('Descripción actualizada ✓');
+}
+function dismissAiSuggest(id) {
+  document.getElementById('liai' + id)?.querySelector('.li-ai-prev')?.remove();
+  delete _aiSuggest[id];
+}
 function calcLi(id) {
   const q=parseFloat(document.getElementById('lq'+id)?.value)||0;
   const p=parseFloat(document.getElementById('lp'+id)?.value)||0;
