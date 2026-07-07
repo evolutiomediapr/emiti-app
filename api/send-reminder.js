@@ -64,11 +64,21 @@ module.exports = async (req, res) => {
     return res.status(409).json({ error: 'El cliente canceló los mensajes (respondió STOP)' });
   }
 
+  // A2P: exigir consentimiento registrado y auditable (sms_consents) antes de enviar.
+  const { data: consent } = await adminClient
+    .from('sms_consents')
+    .select('id')
+    .eq('phone', digits.slice(-10))
+    .maybeSingle();
+  if (!consent) {
+    return res.status(403).json({ error: 'No hay consentimiento SMS registrado para este cliente' });
+  }
+
   const to = '+1' + digits;
   if (to.length !== 12) return res.status(400).json({ error: 'Número de teléfono inválido: ' + phone });
 
   const link = `https://emiti-app.vercel.app/invoice/${encodeURIComponent(inv.num)}`;
-  const body = `Hola ${inv.client}, su factura ${inv.num} de $${parseFloat(inv.total).toFixed(2)} con ${biz.biz} está vencida. Ver: ${link}\n\nResponde STOP para cancelar.`;
+  const body = `Hola ${inv.client}, su factura ${inv.num} de $${parseFloat(inv.total).toFixed(2)} con ${biz.biz} está vencida. Ver: ${link}\n\nResponde STOP para cancelar. Responde HELP para ayuda. Pueden aplicar tarifas de mensajes.`;
 
   try {
     const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);

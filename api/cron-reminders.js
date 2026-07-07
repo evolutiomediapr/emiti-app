@@ -38,6 +38,16 @@ module.exports = async (req, res) => {
     .eq('opted_out', true);
   for (const o of optouts || []) optedOut.add(o.phone);
 
+  // Consentimiento explícito y auditable (sms_consents). A2P 10DLC exige opt-in
+  // verificable: solo se envía a teléfonos con una fila de consentimiento que el
+  // negocio registró (modelo on-behalf). Es el segundo filtro del triple gate,
+  // junto a inv.smsConsent (intención por-factura) y sms_optouts (STOP del cliente).
+  const consented = new Set();
+  const { data: consents } = await supabase
+    .from('sms_consents')
+    .select('phone');
+  for (const c of consents || []) consented.add(c.phone);
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -81,6 +91,13 @@ module.exports = async (req, res) => {
 
     const digits = phone.replace(/\D/g, '');
 
+    // A2P: exigir consentimiento registrado y auditable (sms_consents), no solo el
+    // flag inv.smsConsent del JSON. Sin fila de consentimiento no se envía.
+    if (!consented.has(digits.slice(-10))) {
+      skipped.push({ num: inv.num, reason: 'sin consentimiento registrado (sms_consents)' });
+      continue;
+    }
+
     // Respect opt-out: client texted STOP (recorded by api/sms-webhook.js).
     if (optedOut.has(digits.slice(-10))) {
       skipped.push({ num: inv.num, reason: 'cliente canceló (STOP)' });
@@ -90,7 +107,7 @@ module.exports = async (req, res) => {
     const to = digits.length === 10 ? '+1' + digits : '+' + digits;
 
     const link = `https://emiti-app.vercel.app/invoice/${encodeURIComponent(inv.num)}`;
-    const body = `Hola ${inv.client}, su factura ${inv.num} de $${parseFloat(inv.total).toFixed(2)} con ${biz.biz} está vencida. Ver: ${link}\n\nResponde STOP para cancelar.`;
+    const body = `Hola ${inv.client}, su factura ${inv.num} de $${parseFloat(inv.total).toFixed(2)} con ${biz.biz} está vencida. Ver: ${link}\n\nResponde STOP para cancelar. Responde HELP para ayuda. Pueden aplicar tarifas de mensajes.`;
 
     try {
       const msg = await twilioClient.messages.create({

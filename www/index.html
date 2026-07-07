@@ -624,7 +624,7 @@ table.pt tr:last-child td{border-bottom:none}
       <div class="f" style="margin-top:.1rem">
         <label style="display:flex;align-items:flex-start;gap:.55rem;cursor:pointer;text-transform:none;font-size:.78rem;font-weight:400;color:var(--ink);letter-spacing:0;line-height:1.35">
           <input type="checkbox" id="f-sms-consent" style="width:18px;height:18px;flex-shrink:0;margin-top:1px;accent-color:var(--green)">
-          <span>Mi cliente autorizó recibir notificaciones por SMS sobre sus facturas. Podrá cancelar respondiendo STOP.</span>
+          <span>Este cliente autorizó recibir recordatorios por SMS sobre sus facturas.<br><span style="font-size:.68rem;color:var(--mu);font-weight:400">Al marcar, confirma que su cliente aceptó recibir estos mensajes.</span></span>
         </label>
       </div>
       <div class="f"><label>Email</label><input type="email" id="f-email" placeholder="cliente@email.com"></div>
@@ -2375,6 +2375,7 @@ async function saveDoc() {
       }
       window._editingId = null;
       save(); checkReminders();
+      recordSmsConsent(d); // auditable; supaId ya existe en edición
       toast(d.type==='invoice'?'Factura actualizada ✓':'Cotización actualizada ✓');
       go('facturas');
       // Borrado diferido: snapshot de la cola; el global se limpia ya (esta sesión
@@ -2415,6 +2416,7 @@ async function saveDoc() {
         // Sync confirmado → ahora sí borrar los archivos encolados. Si NO se sincronizó
         // (offline), se dejan: son huérfanos inofensivos (doc nuevo nunca los referenció).
         flushPhotoDeletes(PENDING_PHOTO_DELETES); PENDING_PHOTO_DELETES = [];
+        recordSmsConsent(d); // supaId ya asignado por el insert
       }
       toast(d.type==='invoice'?'Factura guardada ✓':'Cotización guardada ✓');
       go('facturas');
@@ -2889,6 +2891,28 @@ async function syncInvToSupabase(inv) {
     if (error) { console.error('[sync] insert error:', error.message, error); throw new Error(error.message); }
     if (!data) throw new Error('Supabase no devolvió el ID del documento');
     inv.supaId = data.id;
+  }
+}
+
+// Registra el consentimiento SMS en sms_consents: registro auditable e inmutable
+// (modelo on-behalf — el negocio atestigua que su cliente autorizó). El cron y
+// send-reminder EXIGEN una fila aquí antes de enviar. ON CONFLICT DO NOTHING
+// (ignoreDuplicates) preserva el consentimiento original y evita duplicados: una
+// fila por (teléfono, negocio). Fire-and-forget: no bloquea el guardado del doc.
+async function recordSmsConsent(inv) {
+  if (!supa || !CURRENT_USER || CURRENT_USER.is_anonymous) return;
+  if (!inv.smsConsent) return;
+  const phone10 = (inv.phone || '').replace(/\D/g, '').slice(-10);
+  if (phone10.length !== 10) return;
+  try {
+    await supa.from('sms_consents').upsert({
+      phone: phone10,
+      consent_method: 'business_attestation',
+      granted_by_user_id: CURRENT_USER.id,
+      invoice_id: inv.supaId || null,
+    }, { onConflict: 'phone,granted_by_user_id', ignoreDuplicates: true });
+  } catch (e) {
+    console.warn('[sms_consents] no se pudo registrar consentimiento:', e.message);
   }
 }
 
