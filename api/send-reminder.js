@@ -20,10 +20,13 @@ module.exports = async (req, res) => {
 
   const { invoiceId } = req.body;
   if (!invoiceId) return res.status(400).json({ error: 'invoiceId requerido' });
+  // id es bigint: buscar por columna según la forma del identificador — un
+  // .or() con slug no numérico rompe el cast y la query falla como 404.
+  const lookupCol = /^\d+$/.test(String(invoiceId)) ? 'id' : 'slug';
   const { data: row, error } = await adminClient
     .from('invoices')
     .select('id, data, client_phone, num')
-    .or(`id.eq.${invoiceId},slug.eq.${invoiceId}`)
+    .eq(lookupCol, invoiceId)
     .single();
 
   if (error || !row) return res.status(404).json({ error: 'Factura no encontrada' });

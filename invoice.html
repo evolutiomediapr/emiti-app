@@ -386,6 +386,10 @@ async function addCardButtonIfAvailable() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ invoiceId: CURRENT_INVOICE_ID, action: 'methods' })
     });
+    if (!res.ok) {
+      console.warn('[invoice] methods HTTP', res.status);
+      return;
+    }
     const { card } = await res.json();
     if (!card) return;
     const dpay = document.getElementById('dpay');

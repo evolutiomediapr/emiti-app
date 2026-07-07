@@ -20,10 +20,14 @@ module.exports = async (req, res) => {
 
   // Fetch amount from DB — never trust the client-supplied amount
   const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+  // id es bigint: un .or() con slug no numérico revienta el cast en PostgREST
+  // y la query entera falla como "no encontrada". El visor público siempre
+  // manda el slug, así que se decide la columna según la forma del identificador.
+  const lookupCol = /^\d+$/.test(String(invoiceId)) ? 'id' : 'slug';
   const { data: row, error: fetchErr } = await supabase
     .from('invoices')
     .select('data, user_id')
-    .or(`id.eq.${invoiceId},slug.eq.${invoiceId}`)
+    .eq(lookupCol, invoiceId)
     .single();
 
   if (fetchErr || !row) return res.status(404).json({ error: 'Factura no encontrada' });
