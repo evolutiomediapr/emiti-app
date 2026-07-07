@@ -1,5 +1,6 @@
 const Stripe = require('stripe');
 const { createClient } = require('@supabase/supabase-js');
+const { applyPayment } = require('../lib/payments');
 
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 const supabase = createClient(
@@ -70,18 +71,33 @@ const handler = async (req, res) => {
           if (row?.data) {
             let parsed;
             try { parsed = JSON.parse(row.data); } catch { break; }
-            parsed.inv.status = 'paid';
-            if (!parsed.inv.paidDate) parsed.inv.paidDate = new Date().toISOString().split('T')[0];
-            // Atestación server-side de pago con tarjeta: SOLO el webhook
-            // (firma verificada) escribe este valor. La app lo usa para
-            // bloquear la reversión manual del estado pagado.
-            parsed.inv.paidVia = 'stripe';
+            // Sumador de pagos (depósito/balance/total): el monto que reduce el
+            // balance de la factura lo estampa pay-invoice.js server-side en
+            // applied_cents (excluye el cargo de procesamiento del pass-through).
+            // Fallback a amount_total para pagos legacy sin metadata (factura completa).
+            const appliedCents = parseInt(session.metadata?.applied_cents, 10)
+              || (session.amount_total ?? 0);
+            const kind = session.metadata?.payment_kind || 'full';
+            // Idempotencia: un checkout = un payment_intent. Es la llave estable
+            // que hace no-op el doble-disparo del webhook (ver lib/payments.js).
+            const paymentId = (typeof session.payment_intent === 'string' && session.payment_intent)
+              || session.id;
+            // applyPayment: atestación server-side del pago con tarjeta. SOLO el
+            // webhook (firma verificada) escribe entradas method:'stripe', que la
+            // UI trata como inmutables (no reversibles manualmente).
+            const { changed } = applyPayment(parsed.inv, {
+              id: paymentId, method: 'stripe', kind, cents: appliedCents,
+            });
+            if (!changed) {
+              console.log(`Factura ${row.id}: pago ${paymentId} ya contabilizado (doble-disparo ignorado)`);
+              break;
+            }
             const { error: updateErr } = await supabase
               .from('invoices')
               .update({ data: JSON.stringify(parsed) })
               .eq('id', row.id);
-            if (updateErr) console.error('Error updating invoice status:', updateErr.message);
-            else console.log(`Factura ${row.id} marcada como pagada`);
+            if (updateErr) console.error('Error updating invoice payment:', updateErr.message);
+            else console.log(`Factura ${row.id}: pago ${kind} $${(appliedCents/100).toFixed(2)} aplicado → ${parsed.inv.status} (${paymentId})`);
           }
         }
         break;

@@ -1,5 +1,6 @@
 const Stripe = require('stripe');
 const { createClient } = require('@supabase/supabase-js');
+const { sumPaidCents, invTotalCents } = require('../lib/payments');
 
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 const ALLOWED_ORIGIN = 'https://emiti-app.vercel.app';
@@ -37,6 +38,30 @@ function computePassThrough(amountCents, feeCents) {
   return { processingShown, cFinal: amountCents + processingShown };
 }
 
+// Monto del depósito configurado (centavos), acotado a [0, total].
+function depositConfigCents(inv) {
+  if (!inv.deposit) return 0;
+  const totalCents = invTotalCents(inv);
+  const c = inv.deposit.type === 'percent'
+    ? Math.round(totalCents * parseFloat(inv.deposit.value) / 100) // value = porcentaje (p.ej. 50)
+    : Math.round(parseFloat(inv.deposit.value) * 100);            // value = dólares fijos
+  return Math.max(0, Math.min(isNaN(c) ? 0 : c, totalCents));
+}
+
+// Monto (centavos, denominado en la factura) a cobrar AHORA según payment_kind.
+// TODO server-side: el cliente nunca dicta el monto. 'deposit' = lo configurado
+// menos lo ya abonado; 'balance'/'full' = el balance restante.
+function computeDue(inv, kind) {
+  const totalCents = invTotalCents(inv);
+  const paidCents = sumPaidCents(inv);
+  const balanceCents = Math.max(0, totalCents - paidCents);
+  const depositCents = depositConfigCents(inv);
+  const applied = kind === 'deposit'
+    ? Math.min(Math.max(depositCents - paidCents, 0), balanceCents)
+    : balanceCents;
+  return { totalCents, paidCents, balanceCents, depositCents, applied };
+}
+
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGIN);
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -44,7 +69,7 @@ module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { invoiceId, action = 'checkout' } = req.body;
+  const { invoiceId, action = 'checkout', payment_kind = 'full' } = req.body;
   if (!invoiceId) return res.status(400).json({ error: 'invoiceId requerido' });
 
   // Fetch amount from DB — never trust the client-supplied amount
@@ -81,20 +106,33 @@ module.exports = async (req, res) => {
   if (action === 'methods') {
     let passThrough = !!(profile && profile.pass_processing_fee);
     let feeEstimate = 0;
-    if (cardAvailable && passThrough) {
+    let deposit = null;
+    if (cardAvailable) {
       try {
         const inv0 = JSON.parse(row.data).inv;
-        const a = Math.round(parseFloat(inv0.total) * 100);
-        if (!isNaN(a) && a >= 50) {
+        const due = computeDue(inv0, 'deposit');
+        // ¿queda depósito por cobrar? entonces el próximo pago es el depósito;
+        // si no, es el balance. El visor decide qué botón pintar con esto.
+        const depositPending = due.depositCents > 0 && due.applied > 0;
+        const nextCents = depositPending ? due.applied : due.balanceCents;
+        deposit = {
+          configured: due.depositCents > 0,
+          depositCents: due.depositCents,
+          paidCents: due.paidCents,
+          balanceCents: due.balanceCents,
+          nextKind: depositPending ? 'deposit' : 'balance',
+          nextCents,
+        };
+        if (passThrough && nextCents >= 50) {
           const bps0 = FEE_BPS[profile.plan] ?? FEE_BPS.free;
-          const fee0 = Math.round((a * bps0) / 10000);
-          feeEstimate = computePassThrough(a, fee0).processingShown / 100; // en dólares
+          const fee0 = Math.round((nextCents * bps0) / 10000);
+          feeEstimate = computePassThrough(nextCents, fee0).processingShown / 100; // dólares
         }
       } catch { /* estimado best-effort: si el parse falla, no se muestra aviso */ }
     }
     // Sin cargo estimado (>0) no hay nada que avisar; el visor no muestra la nota.
     if (feeEstimate <= 0) passThrough = false;
-    return res.json({ card: cardAvailable, passThrough, feeEstimate });
+    return res.json({ card: cardAvailable, passThrough, feeEstimate, deposit });
   }
 
   if (!cardAvailable) {
@@ -109,16 +147,24 @@ module.exports = async (req, res) => {
   const { inv } = parsed;
   if (!inv?.total) return res.status(400).json({ error: 'Factura sin monto' });
 
-  const amountCents = Math.round(parseFloat(inv.total) * 100);
+  // Monto a cobrar AHORA según payment_kind (server-side; nunca del cliente).
+  // 'full' (default) mantiene el comportamiento previo: cobra el balance completo.
+  const { applied, balanceCents } = computeDue(inv, payment_kind);
+  const amountCents = applied;
   if (isNaN(amountCents) || amountCents < 50) {
-    return res.status(400).json({ error: 'Monto inválido o menor al mínimo de $0.50' });
+    return res.status(400).json({ error: 'Monto a cobrar inválido o menor al mínimo de $0.50' });
+  }
+  if (amountCents > balanceCents) {
+    // no se puede cobrar más que el balance pendiente
+    return res.status(409).json({ error: 'El monto excede el balance pendiente' });
   }
 
   const bps = FEE_BPS[profile.plan] ?? FEE_BPS.free;
   const feeCents = Math.round((amountCents * bps) / 10000);
 
   const label = inv.type === 'estimate' ? 'Cotización' : 'Factura';
-  const description = `${label} ${inv.num || ''}`.trim();
+  const kindLabel = payment_kind === 'deposit' ? 'Depósito' : (payment_kind === 'balance' ? 'Balance' : '');
+  const description = `${kindLabel ? kindLabel + ' — ' : ''}${label} ${inv.num || ''}`.trim();
 
   // Pass-through: si el negocio lo activó, se añade un segundo line item con el
   // "Cargo por procesamiento (tarjeta)" para que el cliente reciba T completo.
@@ -161,7 +207,9 @@ module.exports = async (req, res) => {
       cancel_url: `${process.env.APP_URL}/invoice/${invoiceId}`,
       // Siempre el id numérico de la fila: el visor manda el slug, y el
       // webhook resuelve la factura por este metadata.
-      metadata: { supabase_invoice_id: String(row.id) },
+      // applied_cents = porción que reduce el balance (excluye el cargo de
+      // procesamiento del pass-through); el webhook la suma al ledger.
+      metadata: { supabase_invoice_id: String(row.id), payment_kind, applied_cents: String(amountCents) },
       ...(feeCents > 0 ? { payment_intent_data: { application_fee_amount: feeCents } } : {}),
     }, { stripeAccount: profile.stripe_connect_id });
 

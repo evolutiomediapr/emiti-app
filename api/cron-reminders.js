@@ -107,6 +107,10 @@ module.exports = async (req, res) => {
     const to = digits.length === 10 ? '+1' + digits : '+' + digits;
 
     const link = `https://emiti-app.vercel.app/invoice/${encodeURIComponent(inv.num)}`;
+    // LIMITACIÓN CONSCIENTE FASE 1 (no es bug): el monto es inv.total, no el
+    // balance pendiente. Con depósitos, una factura 'partial' que reciba
+    // recordatorio mostraría el total completo. Aceptable porque SMS aún no está
+    // activo (A2P pendiente). Fase 2: usar el balance (total - amountPaidCents).
     const body = `Hola ${inv.client}, su factura ${inv.num} de $${parseFloat(inv.total).toFixed(2)} con ${biz.biz} está vencida. Ver: ${link}\n\nResponde STOP para cancelar. Responde HELP para ayuda. Pueden aplicar tarifas de mensajes.`;
 
     try {

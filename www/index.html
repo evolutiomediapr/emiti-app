@@ -648,6 +648,21 @@ table.pt tr:last-child td{border-bottom:none}
         <div class="f"><label>Impuestos (%)</label><input type="number" id="f-ivu" value="11.5" min="0" max="20" step="0.5" oninput="calc()"></div>
         <div class="f"><label>Descuento ($)</label><input type="number" id="f-dsc" value="0" min="0" step="0.01" oninput="calc()"></div>
       </div>
+      <div class="f" id="deposit-wrap" style="margin-top:.1rem">
+        <label style="display:flex;align-items:center;gap:.5rem;font-size:.8rem;cursor:pointer;text-transform:none;font-weight:400;letter-spacing:0">
+          <input type="checkbox" id="f-deposit-on" onchange="toggleDepositUI()"> Solicitar depósito / anticipo
+        </label>
+        <div id="deposit-detail" style="display:none;margin-top:.5rem">
+          <div style="display:flex;gap:.4rem;align-items:center">
+            <input type="number" id="f-deposit-value" value="50" min="1" step="1" style="width:90px">
+            <select id="f-deposit-type" style="flex:1;max-width:140px;padding:.55rem;border:1px solid var(--bd);border-radius:var(--rs);background:var(--bg);color:var(--ink);font-family:inherit">
+              <option value="percent">% del total</option>
+              <option value="fixed">$ fijo</option>
+            </select>
+          </div>
+          <div style="font-size:.68rem;color:var(--mu);margin-top:.45rem;line-height:1.4">El cliente paga esta parte como depósito; el resto queda como balance. Nota: cobrar en dos pagos añade un cargo fijo de ~$0.30 de Stripe por cada pago.</div>
+        </div>
+      </div>
       <div class="f" id="showmk-wrap" style="display:none">
         <label style="display:flex;align-items:center;gap:.5rem;font-size:.8rem;cursor:pointer">
           <input type="checkbox" id="f-showmk"> Mostrar desglose de markup al cliente
@@ -2098,6 +2113,11 @@ function checkReminders() {
   const days = parseInt(localStorage.getItem('fpr4_remind_days') || '7');
   const now = new Date(); const today = now.getTime();
   const overdue = INV.filter(inv => {
+    // LIMITACIÓN CONSCIENTE FASE 1 (no es bug): los recordatorios in-app cubren
+    // solo facturas 'pending', NO 'partial'. Se excluyen a propósito porque el
+    // mensaje de recordatorio muestra inv.total (no el balance); recordar una
+    // parcial mostraría el monto equivocado. Fase 2: incluir 'partial' cuando el
+    // template diga el balance pendiente.
     if (inv.status !== 'pending' || inv.type !== 'invoice') return false;
     const invDate = new Date(inv.date + 'T12:00:00');
     const diffDays = Math.floor((today - invDate.getTime()) / (1000*60*60*24));
@@ -2173,7 +2193,7 @@ function boot() {
   setTimeout(() => { initCanvas('bizSigCanvas'); initCanvas('setSigCanvas'); }, 200);
   checkReminders();
   loadServices();
-  refreshPaidStatuses().catch(e => console.warn('[boot] refreshPaid:', e.message));
+  refreshPaymentStatuses().catch(e => console.warn('[boot] refreshPayments:', e.message));
 }
 
 // ── NAV ──
@@ -2345,6 +2365,15 @@ function getForm() {
     bizSig: BIZ_SIG,
     lines, sub, dsc, ivu, tax, total:taxable+tax, status:'pending',
     showMarkup: document.getElementById('f-showmk')?.checked || false,
+    // Depósito/anticipo (opt-in). Solo se guarda si está activo y con valor > 0;
+    // el monto real se computa server-side en pay-invoice.js (nunca del cliente).
+    ...((document.getElementById('f-deposit-on')?.checked &&
+         (parseFloat(document.getElementById('f-deposit-value')?.value) || 0) > 0)
+      ? { deposit: {
+            type: document.getElementById('f-deposit-type').value === 'fixed' ? 'fixed' : 'percent',
+            value: parseFloat(document.getElementById('f-deposit-value').value) || 0,
+          } }
+      : {}),
     // Fotos del documento: solo se persisten si el doc tiene carpeta de Storage
     // (photoDocId se genera perezosamente al subir la 1ra foto). Docs sin fotos
     // quedan byte-idénticos a antes.
@@ -2457,6 +2486,10 @@ function resetForm() {
   document.getElementById('f-dsc').value='0'; document.getElementById('f-ivu').value='11.5';
   const smk=document.getElementById('f-showmk'); if(smk) smk.checked=false;
   document.getElementById('showmk-wrap').style.display = isProUser() ? 'block' : 'none';
+  const dON=document.getElementById('f-deposit-on'); if(dON) dON.checked=false;
+  const dDet=document.getElementById('deposit-detail'); if(dDet) dDet.style.display='none';
+  const dVal=document.getElementById('f-deposit-value'); if(dVal) dVal.value='50';
+  const dTyp=document.getElementById('f-deposit-type'); if(dTyp) dTyp.value='percent';
   document.getElementById('liItems').innerHTML=''; LN=0;
   document.getElementById('f-date').value=new Date().toISOString().split('T')[0];
   DOC_TYPE='invoice';
@@ -2545,14 +2578,30 @@ function showPrev(inv) {
     _conv.style.display=''; _paid.style.display='none';
   } else {
     _conv.style.display='none';
-    const isPaid = inv.status==='paid';
-    // Stripe-paid: sin botón — el preview ya muestra el banner "Pago Recibido"
-    // y el guard de toggleStatus bloquea la reversión de todos modos.
-    _paid.style.display = (isPaid && inv.paidVia==='stripe') ? 'none' : '';
-    _paid.innerHTML = isPaid
-      ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:4px"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>Marcar Pendiente'
-      : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:4px"><polyline points="20 6 9 17 4 12"/></svg>Marcar Pagada';
-    _paid.className = isPaid ? 'btn bam' : 'btn bok';
+    const bal = pmtBalanceCents(inv);
+    const hasLedger = (inv.payments||[]).length > 0;
+    const checkIcon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:4px"><polyline points="20 6 9 17 4 12"/></svg>';
+    const revertIcon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:4px"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>';
+    if (bal > 0) {
+      // pendiente o parcial: ofrecer registrar el cobro
+      _paid.style.display=''; _paid.className='btn bok';
+      if (inv.status==='partial') {
+        _paid.innerHTML = checkIcon+'Registrar pago del balance';
+        _paid.onclick = () => registerManualPayment(inv.id);
+      } else {
+        _paid.innerHTML = checkIcon+'Marcar Pagada';
+        _paid.onclick = () => pactTogglePaid();
+      }
+    } else {
+      // saldada: revertir solo si NO hay porción Stripe inmutable (por-entrada).
+      const stripeLocked = hasLedger
+        ? (pmtStripeCents(inv) > 0 && !inv.payments.some(p=>p.method==='manual'))
+        : inv.paidVia==='stripe';
+      _paid.style.display = stripeLocked ? 'none' : '';
+      _paid.className='btn bam';
+      _paid.innerHTML = revertIcon+'Marcar Pendiente';
+      _paid.onclick = () => pactTogglePaid();
+    }
   }
   document.getElementById('previewModal').classList.add('open');
   document.getElementById('previewModal').scrollTop=0;
@@ -2561,6 +2610,7 @@ function showPrev(inv) {
 function refreshPreview(inv) {
   const isPro = isProUser();
   const isEst = inv.type === 'estimate';
+  const _paidC = pmtPaidCents(inv), _balC = pmtBalanceCents(inv);
   document.getElementById('psheet').innerHTML=`
     <div class="psh">
       <div>
@@ -2584,6 +2634,11 @@ function refreshPreview(inv) {
         <div style="font-size:.72rem;color:#065F46">${fd(inv.paidDate||inv.date)}</div>
       </div>
       <div style="font-weight:800;font-size:1.05rem;color:#059669">$${inv.total.toFixed(2)}</div>
+    </div>`:''}
+    ${inv.status==='partial'?`
+    <div style="background:var(--al);border:1.5px solid var(--am);border-radius:10px;padding:.7rem 1rem;margin-bottom:1rem">
+      <div style="display:flex;justify-content:space-between;font-size:.8rem;color:#7c5e00"><span>Depósito pagado</span><span style="font-weight:700">$${(_paidC/100).toFixed(2)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:.9rem;font-weight:800;color:var(--am);margin-top:.25rem;border-top:1px solid var(--am);padding-top:.35rem"><span>Balance pendiente</span><span>$${(_balC/100).toFixed(2)}</span></div>
     </div>`:''}
     <div class="pcl">
       <div class="lbl">${isEst?'Cotización para':'Facturado a'}</div>
@@ -2700,7 +2755,11 @@ function icard(inv) {
   // Pago Stripe: switch visualmente bloqueado; el tap cae al guard de
   // togglePaidFromList, que explica el porqué con un toast.
   const swLocked  = swOn && inv.paidVia==='stripe';
-  const switchEl  = `<div style="display:flex;gap:.5rem;align-items:center">
+  // Factura con pago parcial: en vez del switch binario, una etiqueta que muestra
+  // el balance pendiente y abre el detalle (donde vive la barra + "Registrar pago").
+  const switchEl  = (inv.type==='invoice' && inv.status==='partial')
+    ? `<span style="font-size:.62rem;font-weight:700;background:var(--al);color:var(--am);padding:.18rem .5rem;border-radius:10px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap">Parcial · falta $${(pmtBalanceCents(inv)/100).toFixed(2)}</span>`
+    : `<div style="display:flex;gap:.5rem;align-items:center">
       <span class="sw-label">${swLabel}</span>
       <button class="switch" role="switch" aria-checked="${swOn}" aria-disabled="${swLocked}" aria-label="${swLabel}" onclick="event.stopPropagation();${swHandler}"><span class="switch-thumb"></span></button>
     </div>`;
@@ -2723,16 +2782,35 @@ function openInv(id) {
 
 function toggleStatus(id) {
   const i=INV.find(x=>x.id===id); if(!i) return;
-  // Pago confirmado por Stripe (paidVia lo escribe SOLO el webhook): revertirlo
-  // no devuelve el dinero ya movido a la cuenta conectada — sería un registro
-  // contable falso. La vía correcta es un refund en Stripe.
-  if (i.status==='paid' && i.paidVia==='stripe') {
-    toast('Pagada con tarjeta vía Stripe — este pago no se puede revertir manualmente');
-    return;
+  const hasLedger = Array.isArray(i.payments) && i.payments.length > 0;
+  if (!hasLedger) {
+    // Legacy binario: sin ledger, el status es la verdad. Guard clásico de Stripe.
+    if (i.status==='paid' && i.paidVia==='stripe') {
+      toast('Pagada con tarjeta vía Stripe — este pago no se puede revertir manualmente');
+      return;
+    }
+    const newStatus = i.status==='paid'?'pending':'paid';
+    i.status = newStatus;
+    if (newStatus==='paid' && !i.paidDate) i.paidDate = new Date().toISOString().split('T')[0];
+  } else if (i.status==='paid' || i.status==='partial') {
+    // Revertir por-entrada: solo se quitan pagos MANUALES; la porción Stripe es
+    // inmutable (el dinero ya se movió; la vía correcta es un refund en Stripe).
+    const hadManual = i.payments.some(p=>p.method==='manual');
+    if (!hadManual && pmtStripeCents(i) > 0) {
+      toast('Pagada con tarjeta vía Stripe — este pago no se puede revertir manualmente');
+      return;
+    }
+    i.payments = i.payments.filter(p=>p.method!=='manual');
+    i.amountPaidCents = pmtSumCents(i);
+    i.status = pmtDeriveStatus(i);
+    if (i.status!=='paid') i.paidDate = null;
+  } else {
+    // pending con ledger (raro): registra pago manual del balance completo.
+    i.payments.push({ id: pmtGenId(), method:'manual', kind:'full', cents: pmtBalanceCents(i), at: new Date().toISOString() });
+    i.amountPaidCents = pmtSumCents(i);
+    i.status = pmtDeriveStatus(i);
+    if (i.status==='paid' && !i.paidDate) i.paidDate = new Date().toISOString().split('T')[0];
   }
-  const newStatus = i.status==='paid'?'pending':'paid';
-  i.status = newStatus;
-  if (newStatus==='paid' && !i.paidDate) i.paidDate = new Date().toISOString().split('T')[0];
   save(); updateDash(); renderAll(); checkReminders();
   // Mantener el documento público compartido en sync con el nuevo estado.
   // Solo si ya vive en la nube (tiene supaId): así NO forzamos INSERT de docs
@@ -2741,11 +2819,11 @@ function toggleStatus(id) {
   if (i.supaId) {
     syncInvToSupabase(i).then(() => save()).catch(e => console.warn('[toggleStatus] sync:', e.message));
   }
-  if (newStatus==='paid') {
+  if (i.status==='paid') {
     toast('Cobrado ✓ — Abriendo recibo…');
     setTimeout(() => showPrev(i), 350);
   } else {
-    toast('Marcado como pendiente');
+    toast(i.status==='partial' ? 'Pago manual revertido' : 'Marcado como pendiente');
   }
 }
 
@@ -2783,7 +2861,11 @@ function togglePaidFromList(id){
   // Guard ANTES del confirm y del i.paidDate=null: sin esto el confirm se
   // mostraría en vano y la limpieza de paidDate corrompería el registro
   // aunque toggleStatus rechace la reversión.
-  if(i.status==='paid' && i.paidVia==='stripe'){
+  const hasLedger = Array.isArray(i.payments) && i.payments.length > 0;
+  const stripeLocked = (i.status==='paid' || i.status==='partial') && (hasLedger
+    ? (!i.payments.some(p=>p.method==='manual') && pmtStripeCents(i) > 0)
+    : i.paidVia==='stripe');
+  if(stripeLocked){
     toast('Pagada con tarjeta vía Stripe — este pago no se puede revertir manualmente');
     return;
   }
@@ -2791,7 +2873,7 @@ function togglePaidFromList(id){
   if(!confirm(goingPaid
       ? '¿Marcar esta factura como pagada?'
       : '¿Revertir el pago de esta factura? Volverá a pendiente.')) return;
-  if(!goingPaid) i.paidDate=null;   // limpiar fecha ANTES de revertir; toggleStatus persiste/sincroniza
+  if(!goingPaid && !hasLedger) i.paidDate=null;   // legacy: limpiar antes; con ledger lo maneja toggleStatus
   toggleStatus(id);                 // flujo idéntico al "Mark paid" del editor (status, sync, recibo)
 }
 
@@ -2806,31 +2888,96 @@ function pactTogglePaid() {
 }
 function save(){localStorage.setItem(skey('fpr4_inv'),JSON.stringify(INV));}
 
+// Muestra/oculta el detalle de la config de depósito en el form.
+function toggleDepositUI(){
+  const on = document.getElementById('f-deposit-on')?.checked;
+  const det = document.getElementById('deposit-detail');
+  if (det) det.style.display = on ? 'block' : 'none';
+}
+
+// ── ESPEJO EN NAVEGADOR de lib/payments.js ──────────────────────────────────
+// El navegador no puede require() el módulo node, así que estas funciones se
+// mantienen IDÉNTICAS a mano (mismo patrón que el resto de index.html/www).
+// El test/payments.test.js protege la versión canónica del backend.
+function pmtSumCents(inv){ return (inv.payments||[]).reduce((s,p)=>s+(p.cents||0),0); }
+function pmtTotalCents(inv){ return Math.round(parseFloat(inv.total||0)*100); }
+function pmtStripeCents(inv){ return (inv.payments||[]).filter(p=>p.method==='stripe').reduce((s,p)=>s+(p.cents||0),0); }
+// Pagado efectivo: usa el ledger si existe; si no, respeta el estado legacy
+// (factura 'paid' antigua sin ledger = pagada completa). Así las facturas
+// pre-depósito se renderizan bien sin migración.
+function pmtPaidCents(inv){
+  if (inv.payments && inv.payments.length) return pmtSumCents(inv);
+  return inv.status==='paid' ? pmtTotalCents(inv) : 0;
+}
+function pmtBalanceCents(inv){ return Math.max(0, pmtTotalCents(inv) - pmtPaidCents(inv)); }
+function pmtDeriveStatus(inv){
+  const paid=pmtPaidCents(inv), total=pmtTotalCents(inv);
+  if (paid<=0) return 'pending';
+  if (paid>=total) return 'paid';
+  return 'partial';
+}
+function pmtGenId(){ return 'man_'+Date.now()+'_'+Math.random().toString(36).slice(2,7); }
+// reconcilePayment: idéntico a lib/payments.js — solo INCORPORA entradas stripe
+// de la nube que el local no tiene; nunca degrada ni toca pagos manuales.
+function pmtReconcile(local, cloud){
+  const ids = new Set((local.payments||[]).map(p=>p.id).filter(Boolean));
+  const incoming = (cloud.payments||[]).filter(p=>p.method==='stripe' && p.id && !ids.has(p.id));
+  if (!incoming.length) return false;
+  local.payments = [...(local.payments||[]), ...incoming];
+  local.amountPaidCents = pmtSumCents(local);
+  local.status = pmtDeriveStatus(local);
+  if (!local.paidVia) local.paidVia = 'stripe';
+  if (local.status==='paid' && !local.paidDate) local.paidDate = cloud.paidDate || new Date().toISOString().split('T')[0];
+  return true;
+}
+
+// Registra un pago manual (efectivo) del balance restante. Reversible (entrada
+// method:'manual'). No toca la porción Stripe.
+function registerManualPayment(id){
+  const inv = INV.find(x=>x.id===id); if(!inv) return;
+  const bal = pmtBalanceCents(inv);
+  if (bal <= 0){ toast('Esta factura ya está saldada'); return; }
+  if (!confirm(`¿Registrar un pago en efectivo de $${(bal/100).toFixed(2)} para ${inv.num}? Marca el balance restante como cobrado.`)) return;
+  if (!Array.isArray(inv.payments)) inv.payments = [];
+  inv.payments.push({ id: pmtGenId(), method:'manual', kind: (pmtPaidCents(inv)>0?'balance':'full'), cents: bal, at: new Date().toISOString() });
+  inv.amountPaidCents = pmtSumCents(inv);
+  inv.status = pmtDeriveStatus(inv);
+  if (inv.status==='paid' && !inv.paidDate) inv.paidDate = new Date().toISOString().split('T')[0];
+  save(); updateDash(); renderAll(); checkReminders();
+  if (inv.supaId) syncInvToSupabase(inv).then(()=>save()).catch(e=>console.warn('[manualPay] sync:', e.message));
+  toast('Pago registrado ✓');
+  if (CURRENT_INV && CURRENT_INV.id===id) showPrev(inv);
+}
+
 // Pull minimal nube -> local: el webhook de Stripe marca 'paid' (+ paidVia)
 // en la fila de la nube y el sync normal (local -> nube, wholesale) nunca lo
 // traería — y lo pisaría en el próximo push. Política "paid gana": solo
 // promueve pending->paid (status + paidDate + paidVia); jamás degrada un paid
 // local. También incluye facturas ya paid sin paidVia local, para que el flag
 // del webhook llegue retroactivamente a dispositivos que ya vieron el pago.
-async function refreshPaidStatuses() {
+async function refreshPaymentStatuses() {
   if (!supa || !CURRENT_USER || CURRENT_USER.is_anonymous) return;
+  // Candidatos: facturas no completamente pagadas (pending/partial) o sin paidVia
+  // (para traer retroactivamente la atestación Stripe). Incluir 'partial' es lo
+  // que capta los depósitos/balance que el webhook escribe en el ledger.
   const candidates = INV.filter(i => i.supaId && i.type === 'invoice' && (i.status !== 'paid' || !i.paidVia));
   if (!candidates.length) return;
   const { data, error } = await supa.from('invoices').select('id,data').in('id', candidates.map(i => i.supaId));
-  if (error) { console.warn('[refreshPaid]', error.message); return; }
+  if (error) { console.warn('[refreshPayments]', error.message); return; }
   let changed = false;
   (data || []).forEach(r => {
     let cloud; try { cloud = JSON.parse(r.data)?.inv; } catch (e) { return; }
-    if (cloud?.status !== 'paid') return;
+    if (!cloud) return;
     const local = INV.find(i => i.supaId === r.id);
     if (!local) return;
-    if (local.status !== 'paid') {
+    // Vía principal: incorporar entradas Stripe del ledger de la nube.
+    if (pmtReconcile(local, cloud)) { changed = true; return; }
+    // Fallback legacy: nube 'paid' SIN ledger (webhook viejo, ventana de deploy)
+    // -> promover binario. "paid gana", nunca degrada.
+    if (cloud.status === 'paid' && local.status !== 'paid') {
       local.status = 'paid';
       local.paidDate = cloud.paidDate || new Date().toISOString().split('T')[0];
-      changed = true;
-    }
-    if (cloud.paidVia && local.paidVia !== cloud.paidVia) {
-      local.paidVia = cloud.paidVia;
+      if (cloud.paidVia && local.paidVia !== cloud.paidVia) local.paidVia = cloud.paidVia;
       changed = true;
     }
   });
@@ -2842,7 +2989,7 @@ async function syncAllInvToSupabase() {
   if (!supa || !CURRENT_USER || CURRENT_USER.is_anonymous) return;
   // Pull antes del push: sin esto el update wholesale pisaría un 'paid'
   // escrito por el webhook entre sesiones.
-  await refreshPaidStatuses().catch(e => console.warn('[syncAll] refreshPaid:', e.message));
+  await refreshPaymentStatuses().catch(e => console.warn('[syncAll] refreshPayments:', e.message));
   for (const inv of INV) {
     await syncInvToSupabase(inv).catch(e => console.warn('[syncAll]', e.message));
   }
@@ -2927,7 +3074,7 @@ function renderAll() {
   let list = INV;
   if (currentFilter==='invoice') list=INV.filter(i=>i.type==='invoice');
   else if (currentFilter==='estimate') list=INV.filter(i=>i.type==='estimate');
-  else if (currentFilter==='pending') list=INV.filter(i=>i.status==='pending');
+  else if (currentFilter==='pending') list=INV.filter(i=>i.status==='pending'||i.status==='partial'); // partial = aún debe balance
   document.getElementById('allList').innerHTML=list.length?list.map(icard).join(''):`<div class="empty"><div class="ei"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#C8D5CC" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg></div><p>No hay documentos en esta categoría.</p></div>`;
 }
 
@@ -2965,6 +3112,10 @@ function getMonthData() {
     const m=d.getMonth(); const y=d.getFullYear();
     const label=d.toLocaleDateString('es-PR',{month:'short'});
     const invoiced=INV.filter(inv=>inv.type==='invoice'&&new Date(inv.date+'T12:00:00').getMonth()===m&&new Date(inv.date+'T12:00:00').getFullYear()===y).reduce((a,inv)=>a+inv.total,0);
+    // LIMITACIÓN CONSCIENTE FASE 1 (no es bug): "cobrado" cuenta solo facturas
+    // completamente pagadas (status==='paid') por su total. Un depósito recibido
+    // en una factura aún 'partial' NO se cuenta aquí hasta que se salde. Fase 2:
+    // sumar amountPaidCents (pmtPaidCents) para reflejar depósitos parciales.
     const collected=INV.filter(inv=>inv.type==='invoice'&&inv.status==='paid'&&new Date(inv.date+'T12:00:00').getMonth()===m&&new Date(inv.date+'T12:00:00').getFullYear()===y).reduce((a,inv)=>a+inv.total,0);
     months.push({label,invoiced,collected,m,y});
   }
@@ -3044,6 +3195,8 @@ function getFilteredData() {
     return {
       label: b.label,
       invoiced:  invs.reduce((a,v)=>a+v.total,0),
+      // LIMITACIÓN CONSCIENTE FASE 1 (ver también renderChart): "cobrado" excluye
+      // depósitos de facturas aún 'partial'. Fase 2 sumaría pmtPaidCents.
       collected: invs.filter(v=>v.status==='paid').reduce((a,v)=>a+v.total,0),
       expenses:  exps.reduce((a,e)=>a+(parseFloat(e.total)||0),0)
     };
@@ -3945,6 +4098,16 @@ function editInv() {
       calcLi(id);
     });
     const smk = document.getElementById('f-showmk'); if (smk) smk.checked = !!inv.showMarkup;
+    const dON = document.getElementById('f-deposit-on');
+    if (dON) {
+      const hasDep = !!(inv.deposit && inv.deposit.value > 0);
+      dON.checked = hasDep;
+      document.getElementById('deposit-detail').style.display = hasDep ? 'block' : 'none';
+      if (hasDep) {
+        document.getElementById('f-deposit-value').value = inv.deposit.value;
+        document.getElementById('f-deposit-type').value = inv.deposit.type === 'fixed' ? 'fixed' : 'percent';
+      }
+    }
     renderPhotoStrip('doc');              // fotos generales del doc en edición
 
     // Mark as editing this invoice

@@ -403,22 +403,37 @@ async function addCardButtonIfAvailable() {
       console.warn('[invoice] methods HTTP', res.status);
       return;
     }
-    const { card, passThrough, feeEstimate } = await res.json();
+    const { card, passThrough, feeEstimate, deposit } = await res.json();
     if (!card) return;
     const dpay = document.getElementById('dpay');
     if (!dpay) return;
-    // Aviso de transparencia: si el negocio pasa la tarifa al cliente, se le
-    // muestra el estimado del cargo ANTES de redirigir al Checkout de Stripe.
+    // Próximo pago (siempre server-side): depósito, balance, o pago completo.
+    // Sin depósito configurado -> 'full' (comportamiento previo).
+    let kind = 'full', payLabel = 'Pagar con tarjeta', depInfo = '';
+    if (deposit && deposit.configured) {
+      const totalC = deposit.paidCents + deposit.balanceCents;
+      if (deposit.nextKind === 'deposit' && deposit.nextCents > 0) {
+        kind = 'deposit';
+        payLabel = `Pagar depósito $${(deposit.nextCents/100).toFixed(2)}`;
+        depInfo = `<div style="font-size:12px;color:#6b7280;margin-top:6px;line-height:1.4">Depósito requerido: $${(deposit.nextCents/100).toFixed(2)} · Balance después: $${((totalC-deposit.nextCents)/100).toFixed(2)}</div>`;
+      } else if (deposit.balanceCents > 0) {
+        kind = 'balance';
+        payLabel = `Pagar balance $${(deposit.balanceCents/100).toFixed(2)}`;
+        depInfo = `<div style="font-size:12px;color:#6b7280;margin-top:6px;line-height:1.4">Depósito pagado: $${(deposit.paidCents/100).toFixed(2)} · Balance pendiente: $${(deposit.balanceCents/100).toFixed(2)}</div>`;
+      }
+    }
+    // Aviso de transparencia del cargo por procesamiento (pass-through).
     const feeNote = (passThrough && feeEstimate > 0)
       ? `<div style="font-size:12px;color:#6b7280;margin-top:6px;line-height:1.4">Pagar con tarjeta añade un cargo por procesamiento de ~$${Number(feeEstimate).toFixed(2)}.</div>`
       : '';
-    dpay.insertAdjacentHTML('afterbegin', `<button class="dpay-btn stripe" id="stripe-pay-btn" onclick="startStripeCheckout()">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>Pagar con tarjeta</button>${feeNote}`);
+    dpay.insertAdjacentHTML('afterbegin', `<button class="dpay-btn stripe" id="stripe-pay-btn" onclick="startStripeCheckout('${kind}')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>${payLabel}</button>${depInfo}${feeNote}`);
     dpay.style.display = '';
-    // Desglose en los totales de la factura: fila del cargo + "Total con tarjeta".
-    // Mismo criterio condicional que el aviso pre-checkout (passThrough && fee > 0).
+    // Desglose "Total con tarjeta" en los totales SOLO para pago completo (kind
+    // 'full'). En depósito/balance el monto va en el botón y el Checkout de Stripe
+    // ya muestra el desglose de sus dos line items.
     const feeRows = document.getElementById('feeRows');
-    if (passThrough && feeEstimate > 0 && feeRows) {
+    if (kind === 'full' && passThrough && feeEstimate > 0 && feeRows) {
       const t = parseFloat(feeRows.dataset.total || '0');
       const grand = t + Number(feeEstimate);
       feeRows.innerHTML =
@@ -430,15 +445,16 @@ async function addCardButtonIfAvailable() {
   }
 }
 
-async function startStripeCheckout() {
+async function startStripeCheckout(kind) {
   const btn = document.getElementById('stripe-pay-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Redirigiendo…'; }
   try {
     const res = await fetch('/api/pay-invoice', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      // Solo el id: monto, descripción y dueño se resuelven server-side de la BD
-      body: JSON.stringify({ invoiceId: CURRENT_INVOICE_ID })
+      // Solo id + tipo de pago: monto, depósito, fee y dueño se resuelven
+      // server-side de la BD (el cliente nunca dicta el monto a cobrar).
+      body: JSON.stringify({ invoiceId: CURRENT_INVOICE_ID, payment_kind: kind || 'full' })
     });
     const { url, error } = await res.json();
     if (error) throw new Error(error);
