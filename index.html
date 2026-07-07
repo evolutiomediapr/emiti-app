@@ -602,8 +602,9 @@ table.pt tr:last-child td{border-bottom:none}
 
   <!-- FACTURAS -->
   <div class="page" id="page-facturas">
-    <div class="rh" style="margin-bottom:.8rem">
+    <div class="rh" style="margin-bottom:.8rem;display:flex;justify-content:space-between;align-items:center">
       <span class="rl">Mis Documentos</span>
+      <button class="btn bgh bsm" onclick="openRecurringList()">🔁 Recurrentes</button>
     </div>
     <div class="tabs">
       <button class="tab active" onclick="filterDocs('all',this)">Todos</button>
@@ -863,6 +864,7 @@ table.pt tr:last-child td{border-bottom:none}
     <!-- NIVEL 2: acción de estado (mismos id/onclick; showPrev los controla) -->
     <button class="btn bg" id="pactConvertBtn" onclick="convertToInvoice(CURRENT_INV.id)" style="display:none">→ Convertir a Factura</button>
     <button class="btn" id="pactPaidBtn" onclick="pactTogglePaid()" style="display:none"></button>
+    <button class="btn bo" id="pactRecurBtn" onclick="makeRecurring()" style="display:none">🔁 Hacer recurrente</button>
     <!-- NIVEL 3: barra de iconos (estilo nav) -->
     <div class="pact-icons">
       <button class="pi" onclick="openSigModal()"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg><span>Firma</span></button>
@@ -924,6 +926,16 @@ table.pt tr:last-child td{border-bottom:none}
     <h3><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>Cuentas por cobrar</h3>
     <div class="modal-sub">Facturas pendientes que necesitan seguimiento</div>
     <div id="remList"></div>
+  </div>
+</div>
+
+<!-- FACTURAS RECURRENTES (Pro) -->
+<div class="modal-overlay" id="recurModal">
+  <div class="modal-box" style="position:relative">
+    <button class="modal-close" onclick="closeRecurModal()">✕</button>
+    <h3><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>Facturas recurrentes</h3>
+    <div class="modal-sub">Se genera un borrador cada mes para que lo revises y envíes.</div>
+    <div id="recurList"></div>
   </div>
 </div>
 
@@ -2217,6 +2229,7 @@ function boot() {
   checkReminders();
   loadServices();
   refreshPaymentStatuses().catch(e => console.warn('[boot] refreshPayments:', e.message));
+  generateDueRecurring().catch(e => console.warn('[boot] recurring:', e.message));
 }
 
 // ── NAV ──
@@ -2669,6 +2682,8 @@ function showPrev(inv) {
   // Toggle contextual del editor: convertir (cotización) o marcar pagada (factura)
   const _conv = document.getElementById('pactConvertBtn');
   const _paid = document.getElementById('pactPaidBtn');
+  const _recur = document.getElementById('pactRecurBtn');
+  if (_recur) _recur.style.display = inv.type==='invoice' ? '' : 'none';  // recurrente solo para facturas
   if (inv.type==='estimate') {
     _conv.style.display=''; _paid.style.display='none';
   } else {
@@ -2844,6 +2859,7 @@ function icard(inv) {
   const safe=JSON.stringify(inv).replace(/\\/g,'\\\\').replace(/'/g,"&#39;").replace(/"/g,'&quot;');
   const sigIcon = inv.clientSig ? ' <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:3px"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>' : '';
   const typeTag = inv.type==='estimate' ? `<span style="font-size:.6rem;font-weight:700;background:var(--bl);color:var(--blue);padding:.1rem .4rem;border-radius:10px;text-transform:uppercase;letter-spacing:.04em">COT</span>` : '';
+  const recurTag = inv.recurringId ? `<span title="Generada de una factura recurrente" style="font-size:.6rem;font-weight:700;background:var(--gl);color:var(--green);padding:.1rem .4rem;border-radius:10px;text-transform:uppercase;letter-spacing:.04em">🔁 Recurrente</span>` : '';
   const swLabel   = inv.type==='estimate' ? 'Convertir a Factura' : 'Pagada';
   const swOn      = inv.type==='invoice' && inv.status==='paid';   // estimate: siempre OFF (one-way)
   const swHandler = inv.type==='estimate' ? `convertToInvoice(${inv.id})` : `togglePaidFromList(${inv.id})`;
@@ -2860,7 +2876,7 @@ function icard(inv) {
     </div>`;
   return `<div class="ic2 ${inv.status}" onclick='openInv(${inv.id})' data-id="${inv.id}">
     <div class="ict">
-      <span class="icn">${inv.client}${sigIcon} ${typeTag}</span>
+      <span class="icn">${inv.client}${sigIcon} ${typeTag}${recurTag}</span>
       <span class="ica">$${inv.total.toFixed(2)}</span>
     </div>
     <div class="icb">
@@ -2982,6 +2998,187 @@ function pactTogglePaid() {
   if (i && i.status!=='paid' && document.getElementById('previewModal').classList.contains('open')) showPrev(i);
 }
 function save(){localStorage.setItem(skey('fpr4_inv'),JSON.stringify(INV));}
+
+// ── FACTURAS RECURRENTES (Fase 1, Opción B: generación client-side al abrir) ──
+// ESPEJO EN NAVEGADOR de lib/recurring.js — el navegador no puede require() el
+// módulo node, así que estas funciones se mantienen IDÉNTICAS a mano (mismo
+// patrón que los pmt* de depósitos). test/recurring.test.js protege la canónica.
+function recDaysInMonth(y, m){ return new Date(Date.UTC(y, m, 0)).getUTCDate(); } // m 1-based
+function recMonthKey(iso){ return String(iso).slice(0, 7); }
+function recMonthlyAfterMonth(todayISO, anchorDay){
+  const [y0,m0] = String(todayISO).split('-').map(Number);
+  let y = y0, m = m0 + 1; if (m > 12) { m = 1; y++; }
+  const d = Math.min(anchorDay, recDaysInMonth(y, m));
+  return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+}
+function recComputeRecurring(t, todayISO){
+  if (!t || t.active === false) return { shouldGenerate:false, reason:'inactive' };
+  if (t.end_date && t.end_date < todayISO) return { shouldGenerate:false, reason:'ended' };
+  if (!t.next_run_date || t.next_run_date > todayISO) return { shouldGenerate:false, reason:'not_due' };
+  const period = recMonthKey(todayISO);
+  if (t.last_generated_period === period) return { shouldGenerate:false, reason:'already_this_period' };
+  const anchorDay = parseInt(String(t.start_date || todayISO).split('-')[2], 10);
+  return { shouldGenerate:true, newNextRunDate: recMonthlyAfterMonth(todayISO, anchorDay), period };
+}
+
+// Construye una factura local (borrador/pending) desde una plantilla. Numeración
+// LOCAL (nextInvoiceSeq, como convertToInvoice). idxOffset evita colisión de id
+// cuando se generan varias en el mismo milisegundo.
+function buildInvoiceFromTemplate(t, today, idxOffset){
+  const lines = (Array.isArray(t.line_items) ? t.line_items : []).map(l => {
+    const line = { desc: l.desc || 'Servicio', qty: parseFloat(l.qty) || 0, price: parseFloat(l.price) || 0 };
+    if (l.markup > 0) line.markup = l.markup;
+    return line;
+  });
+  let sub = 0; lines.forEach(l => { sub += l.qty * l.price * (1 + (l.markup || 0) / 100); });
+  const extras = t.extras || {};
+  const dsc = parseFloat(extras.dsc) || 0;
+  const ivu = (extras.ivu != null && extras.ivu !== '') ? parseFloat(extras.ivu) : 11.5;
+  const taxable = Math.max(sub - dsc, 0);
+  const tax = taxable * ivu / 100;
+  const num = 'FP-' + String(nextInvoiceSeq()).padStart(4, '0');
+  return {
+    id: Date.now() + (idxOffset || 0), num, slug: `${num}-${randSlug()}`, type: 'invoice',
+    client: t.client_name || '', phone: t.client_phone || '', email: t.client_email || '',
+    addr: extras.addr || '', date: today, notes: extras.notes || '',
+    bizSig: BIZ_SIG, lines, sub, dsc, ivu, tax, total: taxable + tax,
+    status: 'pending', showMarkup: false,
+    recurringId: t.id   // marca para el tag "Recurrente"
+  };
+}
+
+// Al abrir la app: genera las facturas recurrentes vencidas como borradores.
+// Lock optimista: avanza next_run_date PRIMERO (update where next_run_date=viejo);
+// si 0 filas -> otra sesión/dispositivo ya generó este período -> se salta.
+async function generateDueRecurring(){
+  if (!supa || !CURRENT_USER || CURRENT_USER.is_anonymous) return;
+  if (!isProUser()) return; // plantillas son Pro; un Pro degradado no genera
+  const today = new Date().toISOString().split('T')[0];
+  let rows;
+  try {
+    const { data, error } = await supa.from('recurring_invoices')
+      .select('*').eq('active', true).lte('next_run_date', today);
+    if (error) { console.warn('[recurring]', error.message); return; }
+    rows = data || [];
+  } catch (e) { console.warn('[recurring]', e.message); return; }
+  let generated = 0;
+  for (let i = 0; i < rows.length; i++) {
+    const t = rows[i];
+    const decision = recComputeRecurring(t, today);
+    if (!decision.shouldGenerate) continue;
+    let updated = 0;
+    try {
+      const { data, error } = await supa.from('recurring_invoices')
+        .update({ next_run_date: decision.newNextRunDate, last_generated_period: decision.period })
+        .eq('id', t.id).eq('next_run_date', t.next_run_date).eq('active', true)
+        .select('id');
+      if (error) { console.warn('[recurring] lock:', error.message); continue; }
+      updated = (data || []).length;
+    } catch (e) { console.warn('[recurring] lock:', e.message); continue; }
+    if (updated === 0) continue; // otra sesión ganó el lock -> ya generada
+    const inv = buildInvoiceFromTemplate(t, today, generated);
+    INV.unshift(inv); save();
+    syncInvToSupabase(inv).then(() => save()).catch(e => console.warn('[recurring] sync:', e.message));
+    generated++;
+  }
+  if (generated > 0) {
+    updateDash(); renderAll(); checkReminders();
+    const p = generated > 1 ? 's' : '';
+    toast(`Tienes ${generated} factura${p} recurrente${p} nueva${p} por revisar`);
+  }
+}
+
+function openRecurUpsell() {
+  document.getElementById('upg-title').textContent = 'Las facturas recurrentes son función Pro';
+  document.getElementById('upg-msg').textContent = 'Automatiza igualas y mantenimientos con el plan Pro.';
+  document.getElementById('upgradeModal').classList.add('open');
+}
+
+// "Hacer recurrente" desde el preview: crea una plantilla en la nube a partir de
+// esta factura. next_run_date = mes siguiente y last_generated_period = mes actual,
+// para que la factura que se acaba de hacer recurrente NO genere un duplicado este mes.
+async function makeRecurring() {
+  const inv = CURRENT_INV; if (!inv) return;
+  if (inv.type !== 'invoice') { toast('Solo las facturas pueden hacerse recurrentes'); return; }
+  if (!isProUser()) { openRecurUpsell(); return; }
+  if (!supa || !CURRENT_USER || CURRENT_USER.is_anonymous) { toast('Inicia sesión para crear recurrentes'); return; }
+  if (!confirm(`¿Repetir esta factura para ${inv.client} cada mes? Emiti creará un borrador nuevo cada mes para que lo revises y envíes.`)) return;
+  const today = new Date().toISOString().split('T')[0];
+  const anchorDay = parseInt(today.split('-')[2], 10);
+  const line_items = (inv.lines || []).map(l => ({ desc: l.desc, qty: l.qty, price: l.price, ...(l.markup > 0 ? { markup: l.markup } : {}) }));
+  const extras = { addr: inv.addr || '', ivu: inv.ivu, dsc: inv.dsc || 0, notes: inv.notes || '' };
+  try {
+    const { error } = await supa.from('recurring_invoices').insert({
+      user_id: CURRENT_USER.id,
+      client_name: inv.client, client_phone: inv.phone || null, client_email: inv.email || null,
+      line_items, extras, frequency: 'monthly',
+      start_date: today, end_date: null,
+      next_run_date: recMonthlyAfterMonth(today, anchorDay),
+      last_generated_period: recMonthKey(today), active: true
+    });
+    if (error) throw error;
+    toast('Factura recurrente creada ✓ — el próximo borrador se genera el mes que viene');
+  } catch (e) {
+    console.warn('[recurring] insert:', e.message);
+    toast('No se pudo crear la recurrente: ' + e.message);
+  }
+}
+
+// Total estimado de una plantilla (misma fórmula que la factura).
+function recEstTotal(t) {
+  let sub = 0; (t.line_items || []).forEach(l => { sub += (parseFloat(l.qty) || 0) * (parseFloat(l.price) || 0) * (1 + ((l.markup || 0) / 100)); });
+  const dsc = parseFloat(t.extras?.dsc) || 0;
+  const ivu = (t.extras?.ivu != null && t.extras?.ivu !== '') ? parseFloat(t.extras.ivu) : 11.5;
+  const taxable = Math.max(sub - dsc, 0);
+  return taxable + taxable * ivu / 100;
+}
+async function openRecurringList() {
+  if (!isProUser()) { openRecurUpsell(); return; }
+  const list = document.getElementById('recurList');
+  list.innerHTML = '<div style="color:var(--mu);font-size:.85rem;text-align:center;padding:1rem">Cargando…</div>';
+  document.getElementById('recurModal').classList.add('open');
+  if (!supa || !CURRENT_USER || CURRENT_USER.is_anonymous) { list.innerHTML = '<div style="color:var(--mu);font-size:.85rem;text-align:center;padding:1rem">Inicia sesión para ver tus recurrentes.</div>'; return; }
+  try {
+    const { data, error } = await supa.from('recurring_invoices').select('*').order('created_at', { ascending: false });
+    if (error) throw error;
+    renderRecurringList(data || []);
+  } catch (e) {
+    list.innerHTML = `<div style="color:var(--red);font-size:.85rem;text-align:center;padding:1rem">Error: ${stmtEsc(e.message)}</div>`;
+  }
+}
+function renderRecurringList(rows) {
+  const list = document.getElementById('recurList');
+  if (!rows.length) {
+    list.innerHTML = '<div style="color:var(--mu);font-size:.85rem;text-align:center;padding:1.2rem">No tienes facturas recurrentes.<br>Abre una factura y toca "🔁 Hacer recurrente".</div>';
+    return;
+  }
+  list.innerHTML = rows.map(t => `<div class="remind-card">
+    <div class="rc-info">
+      <div class="rc-name">${stmtEsc(t.client_name)}</div>
+      <div class="rc-meta">$${recEstTotal(t).toFixed(2)} · mensual · próx: ${fd(t.next_run_date)}${t.active ? '' : ' · <span style="color:var(--am);font-weight:700">pausada</span>'}</div>
+    </div>
+    <div style="display:flex;gap:.35rem;flex-shrink:0">
+      <button class="btn bo bsm" onclick="toggleRecurring(${t.id}, ${t.active})">${t.active ? 'Pausar' : 'Reanudar'}</button>
+      <button class="btn bo bsm" onclick="deleteRecurring(${t.id})">Borrar</button>
+    </div>
+  </div>`).join('');
+}
+async function toggleRecurring(id, active) {
+  try {
+    const { error } = await supa.from('recurring_invoices').update({ active: !active }).eq('id', id);
+    if (error) throw error;
+    openRecurringList();
+  } catch (e) { toast('No se pudo actualizar: ' + e.message); }
+}
+async function deleteRecurring(id) {
+  if (!confirm('¿Borrar esta factura recurrente? Las facturas ya generadas no se tocan.')) return;
+  try {
+    const { error } = await supa.from('recurring_invoices').delete().eq('id', id);
+    if (error) throw error;
+    openRecurringList();
+  } catch (e) { toast('No se pudo borrar: ' + e.message); }
+}
+function closeRecurModal() { document.getElementById('recurModal').classList.remove('open'); }
 
 // Muestra/oculta el detalle de la config de depósito en el form.
 function toggleDepositUI(){
