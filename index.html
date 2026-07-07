@@ -632,6 +632,7 @@ table.pt tr:last-child td{border-bottom:none}
 
     <div class="block">
       <div class="bh">Cliente</div>
+      <button type="button" id="btn-import-contacts" onclick="importFromContacts()" class="btn bo bsm" style="display:none;margin-bottom:.6rem"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>Importar de contactos</button>
       <div class="f"><label>Nombre *</label><input type="text" id="f-cli" placeholder="Juan Martínez"></div>
       <div class="f"><label>Teléfono</label><input type="tel" id="f-tel" placeholder="787-000-0000"></div>
       <div class="f" style="margin-top:.1rem">
@@ -2247,6 +2248,24 @@ function boot() {
   loadServices();
   refreshPaymentStatuses().catch(e => console.warn('[boot] refreshPayments:', e.message));
   generateDueRecurring().catch(e => console.warn('[boot] recurring:', e.message));
+  // "Importar de contactos": solo en iOS nativo (el picker vive en EmitContactsPlugin;
+  // Safari/desktop no tiene API de contactos confiable, así que queda oculto en web).
+  if (window.Capacitor?.isNativePlatform() && Capacitor.getPlatform() === 'ios') {
+    const b = document.getElementById('btn-import-contacts'); if (b) b.style.display = '';
+  }
+}
+// Abre el picker nativo de contactos (CNContactPickerViewController, out-of-process:
+// sin permiso ni acceso a la agenda) y mapea el contacto elegido al form. Gratis.
+async function importFromContacts() {
+  try {
+    const { EmitContacts } = Capacitor.Plugins;
+    if (!EmitContacts) { toast('Función no disponible'); return; }
+    const c = await EmitContacts.pickContact();
+    if (!c || c.cancelled) return;
+    const put = (id, v) => { if (v) { const el = document.getElementById(id); if (el) el.value = v; } };
+    put('f-cli', c.name); put('f-tel', c.phone); put('f-email', c.email); put('f-adr', c.address);
+    toast('Contacto importado');
+  } catch (e) { console.warn('[contacts]', e.message); toast('No se pudo importar el contacto'); }
 }
 
 // ── NAV ──

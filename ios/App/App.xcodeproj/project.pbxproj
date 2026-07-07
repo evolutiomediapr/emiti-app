@@ -16,6 +16,7 @@
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
 		7BD2911460AE493797B3677B /* EmitIAPPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69DD7271087942BD88137299 /* EmitIAPPlugin.swift */; };
+		C0A7AC7500000001C0A7AC75 /* EmitContactsPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A7AC7500000002C0A7AC75 /* EmitContactsPlugin.swift */; };
 		8558214B2FE0A8EE00EC1D53 /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8558214A2FE0A8EE00EC1D53 /* StoreKit.framework */; };
 		A1B2C3D4E5F60001A1B2C3D4 /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002A1B2C3D4 /* ViewController.swift */; };
 /* End PBXBuildFile section */
@@ -31,6 +32,7 @@
 		504EC3131FED79650016851F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		50B271D01FEDC1A000F3C39B /* public */ = {isa = PBXFileReference; lastKnownFileType = folder; path = public; sourceTree = "<group>"; };
 		69DD7271087942BD88137299 /* EmitIAPPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmitIAPPlugin.swift; sourceTree = "<group>"; };
+		C0A7AC7500000002C0A7AC75 /* EmitContactsPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmitContactsPlugin.swift; sourceTree = "<group>"; };
 		8558214A2FE0A8EE00EC1D53 /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = System/Library/Frameworks/StoreKit.framework; sourceTree = SDKROOT; };
 		85F1248C2FF9D31A00798F4D /* App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = App.entitlements; sourceTree = "<group>"; };
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
@@ -75,6 +77,7 @@
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				69DD7271087942BD88137299 /* EmitIAPPlugin.swift */,
+				C0A7AC7500000002C0A7AC75 /* EmitContactsPlugin.swift */,
 				A1B2C3D4E5F60002A1B2C3D4 /* ViewController.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
@@ -177,6 +180,7 @@
 			files = (
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				7BD2911460AE493797B3677B /* EmitIAPPlugin.swift in Sources */,
+				C0A7AC7500000001C0A7AC75 /* EmitContactsPlugin.swift in Sources */,
 				A1B2C3D4E5F60001A1B2C3D4 /* ViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

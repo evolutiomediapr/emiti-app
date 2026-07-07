@@ -10,5 +10,6 @@ class ViewController: CAPBridgeViewController {
     // que se suma al auto-registro de FilePicker y los plugins integrados.
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(EmitIAPPlugin())
+        bridge?.registerPluginInstance(EmitContactsPlugin())
     }
 }
