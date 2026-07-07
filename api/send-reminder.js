@@ -1,5 +1,6 @@
 const twilio = require('twilio');
 const { createClient } = require('@supabase/supabase-js');
+const { sumPaidCents, invTotalCents } = require('../lib/payments');
 
 const ALLOWED_ORIGIN = 'https://emiti-app.vercel.app';
 
@@ -78,7 +79,13 @@ module.exports = async (req, res) => {
   if (to.length !== 12) return res.status(400).json({ error: 'Número de teléfono inválido: ' + phone });
 
   const link = `https://emiti-app.vercel.app/invoice/${encodeURIComponent(inv.num)}`;
-  const body = `Hola ${inv.client}, su factura ${inv.num} de $${parseFloat(inv.total).toFixed(2)} con ${biz.biz} está vencida. Ver: ${link}\n\nResponde STOP para cancelar. Responde HELP para ayuda. Pueden aplicar tarifas de mensajes.`;
+  // FASE 2 (depósitos): si la factura es 'partial', mostrar el balance pendiente
+  // (total - pagado), no el total. Cola STOP/HELP/tarifas idéntica al sample A2P.
+  const balanceCents = invTotalCents(inv) - sumPaidCents(inv);
+  const dueAmt = inv.status === 'partial' ? balanceCents / 100 : parseFloat(inv.total);
+  const body = inv.status === 'partial'
+    ? `Hola ${inv.client}, su factura ${inv.num} con ${biz.biz} tiene un balance pendiente de $${dueAmt.toFixed(2)}. Ver: ${link}\n\nResponde STOP para cancelar. Responde HELP para ayuda. Pueden aplicar tarifas de mensajes.`
+    : `Hola ${inv.client}, su factura ${inv.num} de $${dueAmt.toFixed(2)} con ${biz.biz} está vencida. Ver: ${link}\n\nResponde STOP para cancelar. Responde HELP para ayuda. Pueden aplicar tarifas de mensajes.`;
 
   try {
     const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);

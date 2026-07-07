@@ -2,7 +2,7 @@
 // reconcilePayment() (la lógica de pago más delicada del proyecto).
 // Corre sin Stripe ni Supabase:  node test/payments.test.js
 const assert = require('assert');
-const { applyPayment, reconcilePayment, sumPaidCents } = require('../lib/payments');
+const { applyPayment, reconcilePayment, sumPaidCents, invTotalCents } = require('../lib/payments');
 
 let n = 0;
 const ok = (msg) => { console.log(`  ✓ ${msg}`); n++; };
@@ -94,6 +94,24 @@ console.log('\nEscenario B — reconciliador del pull (nube -> local):');
   assert.strictEqual(local.status, 'paid', 'local paid');
   assert.strictEqual(local.payments.filter(p => p.method === 'manual').length, 1, 'conserva 1 manual (sin duplicar)');
   ok('conserva pago manual y suma el stripe nuevo de la nube');
+}
+
+console.log('\nEscenario C — balance para recordatorios (Fase 2 depósitos):');
+// El cron y send-reminder muestran balanceCents = invTotalCents - sumPaidCents
+// cuando la factura es 'partial'. Se valida la expresión exacta que usan.
+{
+  const inv = { total: 1000, payments: [{ id:'pi_X', method:'stripe', kind:'deposit', cents:40000 }] };
+  const balanceCents = invTotalCents(inv) - sumPaidCents(inv);
+  assert.strictEqual(balanceCents, 60000, 'balance = 100000 - 40000 = 60000');
+  assert.strictEqual((balanceCents/100).toFixed(2), '600.00', 'balance en dólares = 600.00');
+  ok('factura $1000 con depósito $400 -> recordatorio muestra balance $600.00');
+}
+// Factura pending (sin pagos): balance = total (mensaje normal).
+{
+  const inv = { total: 250, payments: [] };
+  const balanceCents = invTotalCents(inv) - sumPaidCents(inv);
+  assert.strictEqual((balanceCents/100).toFixed(2), '250.00', 'pending -> total $250.00');
+  ok('factura pending $250 -> recordatorio muestra total $250.00');
 }
 
 console.log(`\nTODOS LOS ASSERTS PASARON (${n} checks).`);

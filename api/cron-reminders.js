@@ -1,5 +1,6 @@
 const twilio = require('twilio');
 const { createClient } = require('@supabase/supabase-js');
+const { sumPaidCents, invTotalCents } = require('../lib/payments');
 
 // Runs daily at 9am AST (13:00 UTC) via Vercel Cron.
 // Queries Supabase for overdue unpaid invoices and sends SMS via Twilio.
@@ -107,11 +108,15 @@ module.exports = async (req, res) => {
     const to = digits.length === 10 ? '+1' + digits : '+' + digits;
 
     const link = `https://emiti-app.vercel.app/invoice/${encodeURIComponent(inv.num)}`;
-    // LIMITACIÓN CONSCIENTE FASE 1 (no es bug): el monto es inv.total, no el
-    // balance pendiente. Con depósitos, una factura 'partial' que reciba
-    // recordatorio mostraría el total completo. Aceptable porque SMS aún no está
-    // activo (A2P pendiente). Fase 2: usar el balance (total - amountPaidCents).
-    const body = `Hola ${inv.client}, su factura ${inv.num} de $${parseFloat(inv.total).toFixed(2)} con ${biz.biz} está vencida. Ver: ${link}\n\nResponde STOP para cancelar. Responde HELP para ayuda. Pueden aplicar tarifas de mensajes.`;
+    // FASE 2 (depósitos): si la factura es 'partial', el recordatorio muestra el
+    // BALANCE pendiente (total - pagado), no el total. El cron ya procesa las
+    // 'partial' (arriba solo se saltan las 'paid'). La cola STOP/HELP/tarifas se
+    // mantiene IDÉNTICA al sample registrado en A2P/TCR.
+    const balanceCents = invTotalCents(inv) - sumPaidCents(inv);
+    const dueAmt = inv.status === 'partial' ? balanceCents / 100 : parseFloat(inv.total);
+    const body = inv.status === 'partial'
+      ? `Hola ${inv.client}, su factura ${inv.num} con ${biz.biz} tiene un balance pendiente de $${dueAmt.toFixed(2)}. Ver: ${link}\n\nResponde STOP para cancelar. Responde HELP para ayuda. Pueden aplicar tarifas de mensajes.`
+      : `Hola ${inv.client}, su factura ${inv.num} de $${dueAmt.toFixed(2)} con ${biz.biz} está vencida. Ver: ${link}\n\nResponde STOP para cancelar. Responde HELP para ayuda. Pueden aplicar tarifas de mensajes.`;
 
     try {
       const msg = await twilioClient.messages.create({

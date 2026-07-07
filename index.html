@@ -2113,12 +2113,9 @@ function checkReminders() {
   const days = parseInt(localStorage.getItem('fpr4_remind_days') || '7');
   const now = new Date(); const today = now.getTime();
   const overdue = INV.filter(inv => {
-    // LIMITACIÓN CONSCIENTE FASE 1 (no es bug): los recordatorios in-app cubren
-    // solo facturas 'pending', NO 'partial'. Se excluyen a propósito porque el
-    // mensaje de recordatorio muestra inv.total (no el balance); recordar una
-    // parcial mostraría el monto equivocado. Fase 2: incluir 'partial' cuando el
-    // template diga el balance pendiente.
-    if (inv.status !== 'pending' || inv.type !== 'invoice') return false;
+    // FASE 2 (depósitos): se incluyen facturas 'pending' Y 'partial'. Las parciales
+    // aún deben balance; el mensaje muestra el balance pendiente (ver reminderAmount).
+    if ((inv.status !== 'pending' && inv.status !== 'partial') || inv.type !== 'invoice') return false;
     const invDate = new Date(inv.date + 'T12:00:00');
     const diffDays = Math.floor((today - invDate.getTime()) / (1000*60*60*24));
     return diffDays >= days;
@@ -2155,7 +2152,7 @@ function showReminders() {
       <div class="rc-icon ${urgent ? 'urgent' : ''}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg></div>
       <div class="rc-info">
         <div class="rc-name">${inv.client}</div>
-        <div class="rc-meta">${inv.num} · $${inv.total.toFixed(2)}</div>
+        <div class="rc-meta">${inv.num} · $${reminderAmount(inv).toFixed(2)}${inv.status==='partial'?' <span style="color:var(--am);font-weight:700">(balance)</span>':''}</div>
       </div>
       <div>
         <div class="rc-days ${urgent ? 'urgent' : 'warn'}">${diffDays} días</div>
@@ -2170,7 +2167,8 @@ function showReminders() {
 function sendReminder(id) {
   const inv = INV.find(i => i.id === id); if (!inv) return;
   const ph = inv.phone ? '1'+inv.phone.replace(/\D/g,'') : '';
-  const msg = `Estimado/a ${inv.client}, le recordamos que tiene una factura pendiente de pago:\n\n📋 ${inv.num} — $${inv.total.toFixed(2)}\nFecha: ${fd(inv.date)}\n\nGracias por su pronta atención.\n${B.owner || B.biz}${B.phone ? '\n📞 '+B.phone : ''}`;
+  const _amtLabel = inv.status==='partial' ? 'Balance pendiente' : 'Total';
+  const msg = `Estimado/a ${inv.client}, le recordamos que tiene una factura pendiente de pago:\n\n📋 ${inv.num} — ${_amtLabel}: $${reminderAmount(inv).toFixed(2)}\nFecha: ${fd(inv.date)}\n\nGracias por su pronta atención.\n${B.owner || B.biz}${B.phone ? '\n📞 '+B.phone : ''}`;
   window.open(`https://wa.me/${ph}?text=${encodeURIComponent(msg)}`, '_blank');
   document.getElementById('remModal').classList.remove('open');
   toast('Recordatorio enviado por WhatsApp ✓');
@@ -2917,6 +2915,9 @@ function pmtDeriveStatus(inv){
   return 'partial';
 }
 function pmtGenId(){ return 'man_'+Date.now()+'_'+Math.random().toString(36).slice(2,7); }
+// Monto a mostrar en un recordatorio (Fase 2 depósitos): balance pendiente si la
+// factura es 'partial', si no el total. En dólares.
+function reminderAmount(inv){ return inv.status==='partial' ? pmtBalanceCents(inv)/100 : (inv.total||0); }
 // reconcilePayment: idéntico a lib/payments.js — solo INCORPORA entradas stripe
 // de la nube que el local no tiene; nunca degrada ni toca pagos manuales.
 function pmtReconcile(local, cloud){
