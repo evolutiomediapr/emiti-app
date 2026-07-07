@@ -604,7 +604,7 @@ table.pt tr:last-child td{border-bottom:none}
   <div class="page" id="page-facturas">
     <div class="rh" style="margin-bottom:.8rem;display:flex;justify-content:space-between;align-items:center">
       <span class="rl">Mis Documentos</span>
-      <button class="btn bgh bsm" onclick="openRecurringList()">🔁 Recurrentes</button>
+      <button class="btn bgh bsm" onclick="openRecurringList()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>Recurrentes</button>
     </div>
     <div class="tabs">
       <button class="tab active" onclick="filterDocs('all',this)">Todos</button>
@@ -833,9 +833,6 @@ table.pt tr:last-child td{border-bottom:none}
     <button class="nb" id="nb-facturas" onclick="go('facturas')">
       <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg></span>Docs
     </button>
-    <button class="nb" id="nb-nueva" onclick="go('nueva')">
-      <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg></span>Nuevo
-    </button>
     <button class="nb" id="nb-historial" onclick="go('historial')">
       <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="12" width="4" height="9" rx="1"/><rect x="10" y="7" width="4" height="14" rx="1"/><rect x="17" y="3" width="4" height="18" rx="1"/></svg></span>Historial
     </button>
@@ -864,7 +861,7 @@ table.pt tr:last-child td{border-bottom:none}
     <!-- NIVEL 2: acción de estado (mismos id/onclick; showPrev los controla) -->
     <button class="btn bg" id="pactConvertBtn" onclick="convertToInvoice(CURRENT_INV.id)" style="display:none">→ Convertir a Factura</button>
     <button class="btn" id="pactPaidBtn" onclick="pactTogglePaid()" style="display:none"></button>
-    <button class="btn bo" id="pactRecurBtn" onclick="makeRecurring()" style="display:none">🔁 Hacer recurrente</button>
+    <button class="btn bo" id="pactRecurBtn" onclick="makeRecurring()" style="display:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>Hacer recurrente</button>
     <!-- NIVEL 3: barra de iconos (estilo nav) -->
     <div class="pact-icons">
       <button class="pi" onclick="openSigModal()"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg><span>Firma</span></button>
@@ -2308,8 +2305,8 @@ function addLi(lid) {
   </div>
   <div class="li-ai" id="liai${id}">
     ${pro
-      ? `<button type="button" class="li-ai-btn" onclick="improveLineDesc(${id})">✨ Mejorar con IA</button>`
-      : `<button type="button" class="li-ai-btn locked" onclick="openImproveUpsell()">✨ Mejorar con IA <span class="tpl-pro-badge">PRO</span></button>`}
+      ? `<button type="button" class="li-ai-btn" onclick="improveLineDesc(${id})"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px"><path d="M11 3l1.8 5.2L18 10l-5.2 1.8L11 17l-1.8-5.2L4 10l5.2-1.8z"/><path d="M18.5 14l.6 1.9 1.9.6-1.9.6-.6 1.9-.6-1.9-1.9-.6 1.9-.6z"/></svg>Mejorar con IA</button>`
+      : `<button type="button" class="li-ai-btn locked" onclick="openImproveUpsell()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px"><path d="M11 3l1.8 5.2L18 10l-5.2 1.8L11 17l-1.8-5.2L4 10l5.2-1.8z"/><path d="M18.5 14l.6 1.9 1.9.6-1.9.6-.6 1.9-.6-1.9-1.9-.6 1.9-.6z"/></svg>Mejorar con IA <span class="tpl-pro-badge">PRO</span></button>`}
   </div>
   <div class="ph-strip ph-line" data-lid="${theLid}"></div>`;
   document.getElementById('liItems').appendChild(d);
@@ -2356,7 +2353,7 @@ async function improveLineDesc(id) {
     console.warn('[improve] ', e.message);
     toast('No se pudo mejorar el texto');
   } finally {
-    if (btn) { btn.disabled = false; btn.innerHTML = '✨ Mejorar con IA'; }
+    if (btn) { btn.disabled = false; btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px"><path d="M11 3l1.8 5.2L18 10l-5.2 1.8L11 17l-1.8-5.2L4 10l5.2-1.8z"/><path d="M18.5 14l.6 1.9 1.9.6-1.9.6-.6 1.9-.6-1.9-1.9-.6 1.9-.6z"/></svg>Mejorar con IA'; }
   }
 }
 // Tarjeta de preview: usa textContent para la sugerencia (sin riesgo de escape/XSS).
@@ -2859,7 +2856,7 @@ function icard(inv) {
   const safe=JSON.stringify(inv).replace(/\\/g,'\\\\').replace(/'/g,"&#39;").replace(/"/g,'&quot;');
   const sigIcon = inv.clientSig ? ' <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:3px"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>' : '';
   const typeTag = inv.type==='estimate' ? `<span style="font-size:.6rem;font-weight:700;background:var(--bl);color:var(--blue);padding:.1rem .4rem;border-radius:10px;text-transform:uppercase;letter-spacing:.04em">COT</span>` : '';
-  const recurTag = inv.recurringId ? `<span title="Generada de una factura recurrente" style="font-size:.6rem;font-weight:700;background:var(--gl);color:var(--green);padding:.1rem .4rem;border-radius:10px;text-transform:uppercase;letter-spacing:.04em">🔁 Recurrente</span>` : '';
+  const recurTag = inv.recurringId ? `<span title="Generada de una factura recurrente" style="font-size:.6rem;font-weight:700;background:var(--gl);color:var(--green);padding:.1rem .4rem;border-radius:10px;text-transform:uppercase;letter-spacing:.04em"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:2px"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>Recurrente</span>` : '';
   const swLabel   = inv.type==='estimate' ? 'Convertir a Factura' : 'Pagada';
   const swOn      = inv.type==='invoice' && inv.status==='paid';   // estimate: siempre OFF (one-way)
   const swHandler = inv.type==='estimate' ? `convertToInvoice(${inv.id})` : `togglePaidFromList(${inv.id})`;
@@ -3149,7 +3146,7 @@ async function openRecurringList() {
 function renderRecurringList(rows) {
   const list = document.getElementById('recurList');
   if (!rows.length) {
-    list.innerHTML = '<div style="color:var(--mu);font-size:.85rem;text-align:center;padding:1.2rem">No tienes facturas recurrentes.<br>Abre una factura y toca "🔁 Hacer recurrente".</div>';
+    list.innerHTML = '<div style="color:var(--mu);font-size:.85rem;text-align:center;padding:1.2rem">No tienes facturas recurrentes.<br>Abre una factura y toca "Hacer recurrente".</div>';
     return;
   }
   list.innerHTML = rows.map(t => `<div class="remind-card">
