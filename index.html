@@ -735,7 +735,8 @@ table.pt tr:last-child td{border-bottom:none}
 
   <!-- CLIENTES -->
   <div class="page" id="page-clientes">
-    <div class="rh" style="margin-bottom:1rem"><span class="rl">Mis Clientes</span></div>
+    <div class="rh" style="margin-bottom:.35rem"><span class="rl">Mis Clientes</span></div>
+    <div style="font-size:.75rem;color:var(--mu);margin-bottom:.8rem">Toca un cliente para ver o compartir su estado de cuenta.</div>
     <div id="cList"><div class="empty"><div class="ei"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" opacity=".85"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></div><p>Los clientes aparecen aquí<br>cuando creas documentos.</p></div></div>
   </div>
 
@@ -914,6 +915,21 @@ table.pt tr:last-child td{border-bottom:none}
     <h3><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>Cuentas por cobrar</h3>
     <div class="modal-sub">Facturas pendientes que necesitan seguimiento</div>
     <div id="remList"></div>
+  </div>
+</div>
+
+<!-- ESTADO DE CUENTA POR CLIENTE (Pro) -->
+<div class="modal-overlay" id="statementModal">
+  <div class="modal-box" style="position:relative;max-width:640px">
+    <button class="modal-close" onclick="closeStatement()">✕</button>
+    <h3><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Estado de cuenta</h3>
+    <div class="modal-sub" id="stmtClientName"></div>
+    <div style="display:flex;gap:.7rem;align-items:center;margin:.7rem 0;flex-wrap:wrap">
+      <label style="font-size:.72rem;color:var(--mu);display:flex;flex-direction:column;gap:.15rem">Desde<input type="date" id="stmt-from" onchange="refreshStatement()"></label>
+      <label style="font-size:.72rem;color:var(--mu);display:flex;flex-direction:column;gap:.15rem">Hasta<input type="date" id="stmt-to" onchange="refreshStatement()"></label>
+    </div>
+    <div id="stmtPreview" style="max-height:52vh;overflow:auto;border:1px solid var(--bd);border-radius:8px;background:#fff"></div>
+    <button class="btn bok" style="width:100%;margin-top:.8rem" onclick="exportStatementPDF()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:5px"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>Compartir PDF</button>
   </div>
 </div>
 
@@ -3390,7 +3406,154 @@ function renderClients() {
   const map={};
   INV.forEach(i=>{if(!map[i.client])map[i.client]={name:i.client,phone:i.phone,count:0,total:0};map[i.client].count++;map[i.client].total+=i.total;});
   const list=Object.values(map);
-  document.getElementById('cList').innerHTML=list.length?list.map(c=>`<div class="ccard"><div class="cav">${c.name.charAt(0).toUpperCase()}</div><div><div class="cname">${c.name}</div><div class="cmeta">${c.phone||'Sin teléfono'} · ${c.count} doc${c.count!==1?'s':''} · $${c.total.toFixed(0)}</div></div></div>`).join(''):`<div class="empty"><div class="ei"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" opacity=".85"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></div><p>Los clientes aparecen aquí<br>cuando creas documentos.</p></div>`;
+  document.getElementById('cList').innerHTML=list.length?list.map(c=>`<div class="ccard" data-client="${stmtEsc(c.name)}" onclick="openStatement(this.dataset.client)" style="cursor:pointer"><div class="cav">${c.name.charAt(0).toUpperCase()}</div><div><div class="cname">${c.name}</div><div class="cmeta">${c.phone||'Sin teléfono'} · ${c.count} doc${c.count!==1?'s':''} · $${c.total.toFixed(0)}</div></div></div>`).join(''):`<div class="empty"><div class="ei"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" opacity=".85"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></div><p>Los clientes aparecen aquí<br>cuando creas documentos.</p></div>`;
+}
+
+// ── ESTADOS DE CUENTA POR CLIENTE (Pro) ──────────────────────────────────────
+// Resumen financiero de todas las facturas de un cliente (agrupado por nombre,
+// igual que "Mis Clientes"). Solo lee INV en memoria: sin persistencia ni sync.
+// Reusa el ledger de depósitos (pmtPaidCents/pmtBalanceCents) para pagado/balance.
+
+// Escapa para texto HTML y para atributos entre comillas dobles (data-client).
+function stmtEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function stmtStatusLabel(s){ return s==='paid'?'Pagada':s==='partial'?'Parcial':'Pendiente'; }
+
+// Fecha ISO de la factura más antigua del cliente (default del período "Desde").
+function clientOldestDate(clientName){
+  let min=null;
+  INV.forEach(i=>{ if(i.type==='invoice' && i.client===clientName && i.date){ if(!min || i.date<min) min=i.date; } });
+  return min;
+}
+
+// Agrega los datos del statement. from/to en ISO (inclusive). Excluye cotizaciones.
+function statementData(clientName, fromISO, toISO){
+  const rows=[]; let invoiced=0, collected=0, balance=0;
+  const aging={ d0_30:0, d31_60:0, d61_90:0, d90plus:0 };
+  const today=new Date(); today.setHours(0,0,0,0);
+  INV.forEach(i=>{
+    if(i.type!=='invoice' || i.client!==clientName) return;
+    if(fromISO && i.date < fromISO) return;
+    if(toISO && i.date > toISO) return;
+    const total=i.total||0, paid=pmtPaidCents(i)/100, bal=pmtBalanceCents(i)/100;
+    invoiced+=total; collected+=paid; balance+=bal;
+    rows.push({ num:i.num, date:i.date, total, paid, balance:bal, status:i.status||'pending' });
+    if(bal > 0.005){
+      const age=Math.floor((today - new Date(i.date+'T12:00:00').getTime())/86400000);
+      if(age<=30) aging.d0_30+=bal; else if(age<=60) aging.d31_60+=bal;
+      else if(age<=90) aging.d61_90+=bal; else aging.d90plus+=bal;
+    }
+  });
+  rows.sort((a,b)=> a.date<b.date?-1:a.date>b.date?1:0);
+  return { rows, totals:{invoiced, collected, balance}, aging };
+}
+
+// CSS autocontenido del statement (clases stmt- para no colisionar con la app/factura).
+function statementStyle(){ return `
+.stmt{font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:#111915;background:#fff;padding:20px;max-width:760px;margin:0 auto;font-size:13px;line-height:1.5}
+.stmt-hd{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;border-bottom:2px solid #1A7A4A;padding-bottom:12px;margin-bottom:14px}
+.stmt-biz{font-size:16px;font-weight:800}.stmt-sub{font-size:11px;color:#7A8C82}
+.stmt-title{font-size:15px;font-weight:800;color:#1A7A4A;text-transform:uppercase;letter-spacing:.04em;text-align:right;line-height:1.2}
+.stmt-logo{max-height:44px;max-width:120px;object-fit:contain;display:block;margin-bottom:6px}
+.stmt-meta{margin-bottom:14px}.stmt-meta div{margin:1px 0}.stmt-meta b{font-weight:700}
+table.stmt-t{width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:12px}
+table.stmt-t th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.03em;color:#7A8C82;border-bottom:1px solid #E2EAE5;padding:6px 6px 6px 0}
+table.stmt-t td{padding:6px 6px 6px 0;border-bottom:1px solid #EDF2EF}
+table.stmt-t .r,table.stmt-t th.r{text-align:right;white-space:nowrap}
+.stmt-tot{margin-left:auto;width:260px}
+.stmt-tot .row{display:flex;justify-content:space-between;padding:3px 0;font-size:13px}
+.stmt-tot .bal{font-weight:800;color:#1A7A4A;border-top:2px solid #111915;margin-top:4px;padding-top:6px;font-size:15px}
+.stmt-aging{margin-top:14px;font-size:11.5px;color:#374840;background:#F0FAF4;border:1px solid #E2EAE5;border-radius:8px;padding:8px 10px}
+.stmt-aging b{color:#111915}.stmt-empty{color:#7A8C82;text-align:center;padding:24px}`; }
+
+// Markup interno del statement (compartido por la vista en modal y el PDF).
+function statementInnerHTML(clientName, fromISO, toISO){
+  const d=statementData(clientName, fromISO, toISO);
+  const clientPhone=(INV.find(i=>i.type==='invoice'&&i.client===clientName&&i.phone)||{}).phone || '';
+  const money=n=>'$'+(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const period=(fromISO?fd(fromISO):'—')+' – '+(toISO?fd(toISO):'—');
+  const a=d.aging;
+  const body = d.rows.length ? `<table class="stmt-t">
+      <thead><tr><th>Factura</th><th>Fecha</th><th class="r">Total</th><th class="r">Pagado</th><th class="r">Balance</th><th>Estado</th></tr></thead>
+      <tbody>${d.rows.map(r=>`<tr><td>${stmtEsc(r.num)}</td><td>${fd(r.date)}</td><td class="r">${money(r.total)}</td><td class="r">${money(r.paid)}</td><td class="r">${money(r.balance)}</td><td>${stmtStatusLabel(r.status)}</td></tr>`).join('')}</tbody>
+    </table>
+    <div class="stmt-tot">
+      <div class="row"><span>Facturado</span><span>${money(d.totals.invoiced)}</span></div>
+      <div class="row"><span>Cobrado</span><span>${money(d.totals.collected)}</span></div>
+      <div class="row bal"><span>Balance pendiente</span><span>${money(d.totals.balance)}</span></div>
+    </div>
+    <div class="stmt-aging"><b>Antigüedad del balance:</b> 0–30d ${money(a.d0_30)} · 31–60d ${money(a.d31_60)} · 61–90d ${money(a.d61_90)} · 90+d ${money(a.d90plus)}</div>`
+    : `<div class="stmt-empty">No hay facturas de este cliente en el período seleccionado.</div>`;
+  return `<div class="stmt">
+    <div class="stmt-hd">
+      <div>${LOGO?`<img src="${LOGO}" class="stmt-logo" alt="">`:''}<div class="stmt-biz">${stmtEsc(B.biz||'')}</div>
+        <div class="stmt-sub">${[B.owner,B.phone,B.town?B.town+', PR':''].filter(Boolean).map(stmtEsc).join(' · ')}</div></div>
+      <div class="stmt-title">Estado<br>de Cuenta</div>
+    </div>
+    <div class="stmt-meta">
+      <div><b>Cliente:</b> ${stmtEsc(clientName)}</div>
+      ${clientPhone?`<div><b>Teléfono:</b> ${stmtEsc(clientPhone)}</div>`:''}
+      <div><b>Período:</b> ${period}</div>
+    </div>${body}</div>`;
+}
+
+// Documento HTML standalone para el PDF (espejo del patrón de buildPdfHTML, con
+// CSS propio de statement). Solo texto/tabla => sin riesgo de timing de imágenes.
+function buildStatementHTML(clientName, fromISO, toISO){
+  return `<!doctype html><html lang="es"><head><meta charset="utf-8">`
+    + `<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">`
+    + `<style>${statementStyle()}</style></head><body>${statementInnerHTML(clientName, fromISO, toISO)}</body></html>`;
+}
+
+// Abre el modal de estado de cuenta para un cliente (gate Pro). Período por
+// defecto: factura más antigua del cliente -> hoy.
+let _stmtClient = null;
+function openStatement(clientName){
+  if(!clientName) return;
+  if(!isProUser()){
+    document.getElementById('upg-title').textContent = 'Los estados de cuenta son función Pro';
+    document.getElementById('upg-msg').textContent = 'Genera y comparte estados de cuenta por cliente con el plan Pro.';
+    document.getElementById('upgradeModal').classList.add('open');
+    return;
+  }
+  _stmtClient = clientName;
+  document.getElementById('stmtClientName').textContent = clientName;
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('stmt-from').value = clientOldestDate(clientName) || today;
+  document.getElementById('stmt-to').value = today;
+  refreshStatement();
+  document.getElementById('statementModal').classList.add('open');
+}
+function refreshStatement(){
+  if(!_stmtClient) return;
+  const from = document.getElementById('stmt-from').value;
+  const to   = document.getElementById('stmt-to').value;
+  document.getElementById('stmtPreview').innerHTML =
+    '<style>'+statementStyle()+'</style>'+statementInnerHTML(_stmtClient, from, to);
+}
+function closeStatement(){ document.getElementById('statementModal').classList.remove('open'); }
+
+// Genera/comparte el PDF del statement. iOS: share sheet nativo (así se envía
+// por WhatsApp/email/etc. con el PDF adjunto). Web: window.print() en ventana nueva.
+async function exportStatementPDF(){
+  if(!_stmtClient) return;
+  const from = document.getElementById('stmt-from').value;
+  const to   = document.getElementById('stmt-to').value;
+  const html = buildStatementHTML(_stmtClient, from, to);
+  const fileName = 'Estado-' + String(_stmtClient).replace(/[^\w-]/g,'').slice(0,40) + '.pdf';
+  if(!window.Capacitor?.isNativePlatform()){
+    const w = window.open('', '_blank');
+    if(!w){ toast('Permite ventanas emergentes para imprimir'); return; }
+    w.document.write(html); w.document.close();
+    w.onload = () => { w.focus(); w.print(); };
+    return;
+  }
+  try {
+    const { PdfGenerator } = Capacitor.Plugins;
+    if(!PdfGenerator) throw new Error('Plugin PDF no disponible. Reinstala la app.');
+    await PdfGenerator.fromData({ data: html, documentSize:'A4', orientation:'portrait', type:'share', fileName });
+  } catch(e){
+    toast('No se pudo generar el PDF: ' + (e.message || e));
+  }
 }
 
 function fillSettings() {
