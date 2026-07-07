@@ -26,7 +26,7 @@ module.exports = async (req, res) => {
   const lookupCol = /^\d+$/.test(String(invoiceId)) ? 'id' : 'slug';
   const { data: row, error: fetchErr } = await supabase
     .from('invoices')
-    .select('data, user_id')
+    .select('id, data, user_id')
     .eq(lookupCol, invoiceId)
     .single();
 
@@ -91,7 +91,9 @@ module.exports = async (req, res) => {
       customer_email: inv.email || undefined,
       success_url: `${process.env.APP_URL}/invoice/${invoiceId}?paid=1&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.APP_URL}/invoice/${invoiceId}`,
-      metadata: { supabase_invoice_id: String(invoiceId) },
+      // Siempre el id numérico de la fila: el visor manda el slug, y el
+      // webhook resuelve la factura por este metadata.
+      metadata: { supabase_invoice_id: String(row.id) },
       ...(feeCents > 0 ? { payment_intent_data: { application_fee_amount: feeCents } } : {}),
     }, { stripeAccount: profile.stripe_connect_id });
 

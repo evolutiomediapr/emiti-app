@@ -2142,6 +2142,7 @@ function boot() {
   setTimeout(() => { initCanvas('bizSigCanvas'); initCanvas('setSigCanvas'); }, 200);
   checkReminders();
   loadServices();
+  refreshPaidStatuses().catch(e => console.warn('[boot] refreshPaid:', e.message));
 }
 
 // ── NAV ──
@@ -2750,9 +2751,35 @@ function pactTogglePaid() {
 }
 function save(){localStorage.setItem(skey('fpr4_inv'),JSON.stringify(INV));}
 
+// Pull minimal nube -> local: el webhook de Stripe marca 'paid' en la fila de
+// la nube y el sync normal (local -> nube, wholesale) nunca lo traería — y lo
+// pisaría en el próximo push. Política "paid gana": solo promueve
+// pending->paid (status + paidDate); jamás degrada un paid local.
+async function refreshPaidStatuses() {
+  if (!supa || !CURRENT_USER || CURRENT_USER.is_anonymous) return;
+  const candidates = INV.filter(i => i.supaId && i.type === 'invoice' && i.status !== 'paid');
+  if (!candidates.length) return;
+  const { data, error } = await supa.from('invoices').select('id,data').in('id', candidates.map(i => i.supaId));
+  if (error) { console.warn('[refreshPaid]', error.message); return; }
+  let changed = false;
+  (data || []).forEach(r => {
+    let cloud; try { cloud = JSON.parse(r.data)?.inv; } catch (e) { return; }
+    if (cloud?.status !== 'paid') return;
+    const local = INV.find(i => i.supaId === r.id);
+    if (!local || local.status === 'paid') return;
+    local.status = 'paid';
+    local.paidDate = cloud.paidDate || new Date().toISOString().split('T')[0];
+    changed = true;
+  });
+  if (changed) { save(); updateDash(); renderAll(); }
+}
+
 // Re-sincroniza todas las facturas del localStorage a la cuenta activa (post-login)
 async function syncAllInvToSupabase() {
   if (!supa || !CURRENT_USER || CURRENT_USER.is_anonymous) return;
+  // Pull antes del push: sin esto el update wholesale pisaría un 'paid'
+  // escrito por el webhook entre sesiones.
+  await refreshPaidStatuses().catch(e => console.warn('[syncAll] refreshPaid:', e.message));
   for (const inv of INV) {
     await syncInvToSupabase(inv).catch(e => console.warn('[syncAll]', e.message));
   }

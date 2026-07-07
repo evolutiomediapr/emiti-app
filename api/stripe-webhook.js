@@ -53,10 +53,13 @@ const handler = async (req, res) => {
         const session = event.data.object;
         const invoiceId = session.metadata?.supabase_invoice_id;
         if (invoiceId && session.payment_status === 'paid') {
+          // id es bigint: sesiones creadas antes del fix de metadata traen el
+          // slug aquí, y un .eq('id', slug) rompe el cast y pierde el pago.
+          const lookupCol = /^\d+$/.test(String(invoiceId)) ? 'id' : 'slug';
           const { data: row, error: fetchErr } = await supabase
             .from('invoices')
-            .select('data')
-            .eq('id', invoiceId)
+            .select('id, data')
+            .eq(lookupCol, invoiceId)
             .single();
 
           if (fetchErr) {
@@ -68,12 +71,13 @@ const handler = async (req, res) => {
             let parsed;
             try { parsed = JSON.parse(row.data); } catch { break; }
             parsed.inv.status = 'paid';
+            if (!parsed.inv.paidDate) parsed.inv.paidDate = new Date().toISOString().split('T')[0];
             const { error: updateErr } = await supabase
               .from('invoices')
               .update({ data: JSON.stringify(parsed) })
-              .eq('id', invoiceId);
+              .eq('id', row.id);
             if (updateErr) console.error('Error updating invoice status:', updateErr.message);
-            else console.log(`Factura ${invoiceId} marcada como pagada`);
+            else console.log(`Factura ${row.id} marcada como pagada`);
           }
         }
         break;
