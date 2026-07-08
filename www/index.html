@@ -37,6 +37,10 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:'Plus Ja
 .f{margin-bottom:.85rem}
 .f label{display:block;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--mu);margin-bottom:.3rem}
 input,textarea,select{width:100%;background:var(--bg);border:1.5px solid var(--bd);border-radius:var(--rs);color:var(--ink);font-family:'Plus Jakarta Sans',sans-serif;font-size:.93rem;padding:.68rem .9rem;outline:none;transition:border-color .15s,background .15s;-webkit-appearance:none}
+/* La regla de arriba (para campos de texto) aplicaba -webkit-appearance:none + width:100%
+   a TODOS los inputs, matando el render nativo de los checkboxes (sin palomita, y los
+   sin width inline salían de ancho completo). Restaura el checkbox nativo → accent-color funciona. */
+input[type=checkbox]{-webkit-appearance:auto;appearance:auto;width:auto;background:none;border:none;border-radius:0;padding:0}
 input:focus,textarea:focus,select:focus{border-color:var(--green);background:#fff}
 input::placeholder,textarea::placeholder{color:#B0BDB6;font-weight:300}
 textarea{resize:vertical;min-height:66px;line-height:1.5}
