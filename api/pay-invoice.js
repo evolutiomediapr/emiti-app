@@ -107,29 +107,32 @@ module.exports = async (req, res) => {
     let passThrough = !!(profile && profile.pass_processing_fee);
     let feeEstimate = 0;
     let deposit = null;
-    if (cardAvailable) {
-      try {
-        const inv0 = JSON.parse(row.data).inv;
-        const due = computeDue(inv0, 'deposit');
-        // ¿queda depósito por cobrar? entonces el próximo pago es el depósito;
-        // si no, es el balance. El visor decide qué botón pintar con esto.
-        const depositPending = due.depositCents > 0 && due.applied > 0;
-        const nextCents = depositPending ? due.applied : due.balanceCents;
-        deposit = {
-          configured: due.depositCents > 0,
-          depositCents: due.depositCents,
-          paidCents: due.paidCents,
-          balanceCents: due.balanceCents,
-          nextKind: depositPending ? 'deposit' : 'balance',
-          nextCents,
-        };
-        if (passThrough && nextCents >= 50) {
-          const bps0 = FEE_BPS[profile.plan] ?? FEE_BPS.free;
-          const fee0 = Math.round((nextCents * bps0) / 10000);
-          feeEstimate = computePassThrough(nextCents, fee0).processingShown / 100; // dólares
-        }
-      } catch { /* estimado best-effort: si el parse falla, no se muestra aviso */ }
-    }
+    // El depósito es INFORMACIÓN de la factura (computeDue/depositConfigCents son
+    // puros): se computa SIEMPRE, con o sin Stripe, para que el visor muestre el
+    // aviso "Se requiere un depósito" aunque el negocio lo cobre por otro medio.
+    // El botón de tarjeta (card) y el feeEstimate (pass-through) sí quedan gated
+    // en cardAvailable — esos dependen de Stripe.
+    try {
+      const inv0 = JSON.parse(row.data).inv;
+      const due = computeDue(inv0, 'deposit');
+      // ¿queda depósito por cobrar? entonces el próximo pago es el depósito;
+      // si no, es el balance. El visor decide qué botón pintar con esto.
+      const depositPending = due.depositCents > 0 && due.applied > 0;
+      const nextCents = depositPending ? due.applied : due.balanceCents;
+      deposit = {
+        configured: due.depositCents > 0,
+        depositCents: due.depositCents,
+        paidCents: due.paidCents,
+        balanceCents: due.balanceCents,
+        nextKind: depositPending ? 'deposit' : 'balance',
+        nextCents,
+      };
+      if (cardAvailable && passThrough && nextCents >= 50) {
+        const bps0 = FEE_BPS[profile.plan] ?? FEE_BPS.free;
+        const fee0 = Math.round((nextCents * bps0) / 10000);
+        feeEstimate = computePassThrough(nextCents, fee0).processingShown / 100; // dólares
+      }
+    } catch { /* estimado best-effort: si el parse falla, no se muestra aviso */ }
     // Sin cargo estimado (>0) no hay nada que avisar; el visor no muestra la nota.
     if (feeEstimate <= 0) passThrough = false;
     return res.json({ card: cardAvailable, passThrough, feeEstimate, deposit });
