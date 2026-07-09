@@ -104,6 +104,26 @@ table.dt tr:last-child td{border-bottom:none}
 .paid-banner-title{font-size:.9rem;font-weight:700;color:var(--green)}
 .paid-banner-sub{font-size:.75rem;color:var(--ink2);margin-top:.1rem}
 
+/* ── Firma remota (solo cotizaciones) ── */
+.sign-area{border-top:1px solid var(--bd2);padding:1.3rem 1.6rem 1.5rem}
+.sign-title{font-size:.95rem;font-weight:700;color:var(--ink)}
+.sign-sub{font-size:.78rem;color:var(--mu);margin:.25rem 0 .9rem}
+.sign-area input{width:100%;border:1.5px solid var(--bd);border-radius:var(--rs);padding:.6rem .75rem;font-size:.9rem;color:var(--ink);margin-bottom:.7rem;font-family:inherit;background:#fff}
+.sign-area input:focus{outline:none;border-color:var(--green)}
+.sig-wrap{border:1.5px solid var(--bd);border-radius:var(--rs);overflow:hidden;position:relative;background:#fafafa}
+.sig-wrap canvas{display:block;width:100%;touch-action:none}
+.sig-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--mu);font-size:.82rem;pointer-events:none}
+.sign-actions{display:flex;gap:.6rem;margin-top:.8rem}
+.sign-actions button{border-radius:var(--rs);font-size:.85rem;font-weight:600;padding:.65rem 1rem;cursor:pointer;font-family:inherit}
+.sbtn-clear{background:#fff;border:1.5px solid var(--bd);color:var(--ink2)}
+.sbtn-accept{flex:1;background:var(--green);border:1.5px solid var(--green);color:#fff}
+.sbtn-accept:disabled{opacity:.55;cursor:default}
+.sign-err{font-size:.78rem;color:var(--red);margin-top:.6rem;display:none}
+.signed-banner{display:flex;align-items:center;gap:.7rem;background:var(--gxl);border-top:1px solid var(--bd2);padding:1.1rem 1.6rem}
+.signed-banner svg{width:22px;height:22px;color:var(--green);flex-shrink:0}
+.signed-banner-title{font-size:.88rem;font-weight:700;color:var(--green)}
+.signed-banner-sub{font-size:.74rem;color:var(--ink2);margin-top:.1rem}
+
 /* ── FOOTER ── */
 .dfooter{padding:.9rem 1.4rem;text-align:center;font-size:.72rem;color:var(--mu);line-height:1.8}
 
@@ -183,6 +203,7 @@ const SUPA_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFz
 
 let CURRENT_INVOICE_ID = null;
 let CURRENT_INVOICE = null;
+let VIEWED_AT = null; // cuándo este visor cargó el doc; viaja como evidencia en la firma
 
 function fd(s) {
   if (!s) return '';
@@ -373,6 +394,7 @@ function renderDoc(inv, biz, logo, payments) {
 
       ${inv.notes ? `<div class="dnotes">${esc(inv.notes)}</div>` : ''}
       ${payHtml}
+      ${isEst ? '<div id="sign-slot"></div>' : ''}
       ${photosHtml}
 
       <div class="dfooter">
@@ -387,6 +409,7 @@ function renderDoc(inv, biz, logo, payments) {
   wrap.style.display = 'block';
 
   if (!isPaid && !justPaid) addCardButtonIfAvailable();
+  if (isEst) addSignAreaIfEligible(inv);
 }
 
 // Muestra "Pagar con tarjeta" solo si el dueño tiene su cuenta de Stripe
@@ -474,6 +497,122 @@ async function startStripeCheckout(kind) {
   }
 }
 
+// ── FIRMA REMOTA (solo cotizaciones) ──
+// Canvas táctil idéntico al in-app (index.html initCanvas/clearCanvas/
+// canvasToData); se copia porque el visor es standalone, sin JS compartido.
+const sigCanvases = {};
+const isDrawing = {};
+
+function initCanvas(id) {
+  const canvas = document.getElementById(id); if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  canvas.width = canvas.offsetWidth || canvas.parentElement.offsetWidth || 300;
+  ctx.strokeStyle = '#111915'; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  sigCanvases[id] = { ctx, hasDrawn: false };
+  isDrawing[id] = false;
+
+  const getPos = (e, c) => {
+    const rect = c.getBoundingClientRect();
+    const src = e.touches ? e.touches[0] : e;
+    return { x: (src.clientX - rect.left) * (c.width / rect.width), y: (src.clientY - rect.top) * (c.height / rect.height) };
+  };
+
+  const start = e => { e.preventDefault(); isDrawing[id] = true; const p = getPos(e, canvas); ctx.beginPath(); ctx.moveTo(p.x, p.y); const ph = document.getElementById(id.replace('Canvas','Ph')||id+'Ph'); if(ph) ph.style.display='none'; };
+  const draw = e => { e.preventDefault(); if (!isDrawing[id]) return; const p = getPos(e, canvas); ctx.lineTo(p.x, p.y); ctx.stroke(); sigCanvases[id].hasDrawn = true; };
+  const stop = e => { e.preventDefault(); isDrawing[id] = false; };
+
+  canvas.addEventListener('mousedown', start); canvas.addEventListener('mousemove', draw); canvas.addEventListener('mouseup', stop);
+  canvas.addEventListener('touchstart', start, {passive:false}); canvas.addEventListener('touchmove', draw, {passive:false}); canvas.addEventListener('touchend', stop, {passive:false});
+}
+
+function clearCanvas(id, phId) {
+  const canvas = document.getElementById(id); if (!canvas) return;
+  const sc = sigCanvases[id]; if (sc) { sc.ctx.clearRect(0, 0, canvas.width, canvas.height); sc.hasDrawn = false; }
+  const ph = document.getElementById(phId); if (ph) ph.style.display = 'flex';
+}
+
+function canvasToData(id) {
+  const canvas = document.getElementById(id); if (!canvas) return null;
+  return sigCanvases[id]?.hasDrawn ? canvas.toDataURL('image/png') : null;
+}
+
+// La elegibilidad REAL la decide el server (gates 422/410 y el UNIQUE->409);
+// esto solo evita pintar el panel cuando no corresponde: ya firmada en persona
+// (inv.clientSig en el JSON), vencida (mismo criterio de fecha que el server),
+// o ya firmada remotamente (GET al endpoint; NO se consulta la tabla por
+// PostgREST — sin política anon, la firma no es legible con solo el link).
+async function addSignAreaIfEligible(inv) {
+  const slot = document.getElementById('sign-slot');
+  if (!slot) return;
+  if (inv.clientSig) return;
+  if (inv.validUntil && new Date().toISOString().split('T')[0] > inv.validUntil) return;
+  let st;
+  try {
+    const res = await fetch(`/api/sign-document?invoiceId=${encodeURIComponent(CURRENT_INVOICE_ID)}`, { cache: 'no-store' });
+    if (!res.ok) return; // sin estado no se ofrece firmar; el server protege igual
+    st = await res.json();
+  } catch { return; }
+  if (st.signed) { renderSignedBanner(st.signedAt); return; }
+  slot.innerHTML = `
+    <div class="sign-area">
+      <div class="sign-title">¿Aceptas esta cotización?</div>
+      <div class="sign-sub">Escribe tu nombre y firma con el dedo para aceptarla. El negocio recibirá una notificación.</div>
+      <input type="text" id="signerName" placeholder="Tu nombre completo" maxlength="120" autocomplete="name">
+      <div class="sig-wrap" style="height:140px"><canvas id="pubSigCanvas" height="140"></canvas><div class="sig-placeholder" id="pubSigPh">Firma aquí con el dedo</div></div>
+      <div class="sign-actions">
+        <button class="sbtn-clear" onclick="clearCanvas('pubSigCanvas','pubSigPh')">Limpiar</button>
+        <button class="sbtn-accept" id="sign-submit" onclick="submitSignature()">Firmar y aceptar</button>
+      </div>
+      <div class="sign-err" id="sign-err"></div>
+    </div>`;
+  initCanvas('pubSigCanvas');
+}
+
+function showSignErr(msg) {
+  const el = document.getElementById('sign-err');
+  if (el) { el.textContent = msg; el.style.display = 'block'; }
+}
+
+function renderSignedBanner(signedAt) {
+  const slot = document.getElementById('sign-slot');
+  if (!slot) return;
+  // signedAt ISO -> fecha legible con fd() (solo la parte YYYY-MM-DD)
+  const when = signedAt ? ` el ${fd(String(signedAt).split('T')[0].split(' ')[0])}` : '';
+  slot.innerHTML = `
+    <div class="signed-banner">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+      <div>
+        <div class="signed-banner-title">Cotización aceptada</div>
+        <div class="signed-banner-sub">Este documento fue firmado${when}. El negocio ha sido notificado.</div>
+      </div>
+    </div>`;
+}
+
+async function submitSignature() {
+  const name = (document.getElementById('signerName')?.value || '').trim();
+  const png = canvasToData('pubSigCanvas');
+  if (!name) { showSignErr('Escribe tu nombre completo.'); return; }
+  if (!png) { showSignErr('Dibuja tu firma para continuar.'); return; }
+  const err = document.getElementById('sign-err'); if (err) err.style.display = 'none';
+  const btn = document.getElementById('sign-submit');
+  if (btn) { btn.disabled = true; btn.textContent = 'Enviando…'; }
+  try {
+    const res = await fetch('/api/sign-document', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ invoiceId: CURRENT_INVOICE_ID, signerName: name, signaturePng: png, viewedAt: VIEWED_AT })
+    });
+    const out = await res.json().catch(() => ({}));
+    if (res.ok) { renderSignedBanner(out.signedAt); return; }
+    // 409: otra persona firmó primero (el UNIQUE ganó) -> mostrar estado firmado
+    if (res.status === 409) { renderSignedBanner(null); return; }
+    showSignErr(out.error || 'No se pudo enviar la firma. Intenta de nuevo.');
+  } catch {
+    showSignErr('Error de conexión. Intenta de nuevo.');
+  }
+  if (btn) { btn.disabled = false; btn.textContent = 'Firmar y aceptar'; }
+}
+
 async function init() {
   const parts = window.location.pathname.split('/');
   const slug = decodeURIComponent(parts[parts.length - 1]);
@@ -518,6 +657,7 @@ async function init() {
   if (!inv || !biz) { showError(); return; }
 
   CURRENT_INVOICE = inv;
+  VIEWED_AT = new Date().toISOString();
   renderDoc(inv, biz, logo || null, payments || null);
 }
 
