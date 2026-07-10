@@ -562,6 +562,7 @@ table.pt tr:last-child td{border-bottom:none}
       <div class="btxt" id="topBiz">Mi negocio</div>
     </div>
     <div style="display:flex;align-items:center;gap:.6rem">
+      <button class="btn bo bsm" onclick="showSupport()" id="supportBtn" aria-label="Soporte y sugerencias" style="padding:.45rem .6rem;display:flex;align-items:center"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></button>
       <button class="btn bo bsm" onclick="showReminders()" id="remBtn" style="position:relative;padding:.45rem .6rem;display:flex;align-items:center;gap:.3rem"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg><span id="remCount" style="display:none;background:var(--red);color:#fff;border-radius:10px;padding:.05rem .35rem;font-size:.65rem"></span></button>
       <button id="btn-anon-login" class="btn bg bsm" onclick="showAuthModal()" style="display:none;font-size:.72rem;padding:.35rem .7rem">Crear cuenta</button>
     </div>
@@ -930,6 +931,24 @@ table.pt tr:last-child td{border-bottom:none}
     <h3><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>Cuentas por cobrar</h3>
     <div class="modal-sub">Facturas pendientes que necesitan seguimiento</div>
     <div id="remList"></div>
+  </div>
+</div>
+
+<!-- SOPORTE / SUGERENCIAS -->
+<div class="modal-overlay" id="supportModal">
+  <div class="modal-box" style="position:relative">
+    <button class="modal-close" onclick="document.getElementById('supportModal').classList.remove('open')">✕</button>
+    <h3><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Soporte y sugerencias</h3>
+    <div class="modal-sub">¿En qué podemos ayudarte? Te responderemos a tu correo.</div>
+    <div id="fbCats" style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.85rem">
+      <button type="button" class="btn bo bsm" onclick="selectFbCat('problema',this)">Reportar un problema</button>
+      <button type="button" class="btn bo bsm" onclick="selectFbCat('sugerencia',this)">Sugerir una idea</button>
+      <button type="button" class="btn bo bsm" onclick="selectFbCat('pregunta',this)">Hacer una pregunta</button>
+    </div>
+    <div class="f"><textarea id="fbMsg" maxlength="2000" placeholder="Escribe tu mensaje…" style="min-height:110px"></textarea></div>
+    <div style="font-size:.72rem;color:var(--mu);margin-bottom:.85rem">Te responderemos a <strong id="fbEmail"></strong></div>
+    <div id="fbErr" style="display:none;color:var(--red);font-size:.78rem;margin-bottom:.7rem"></div>
+    <button class="btn bg" id="fbSend" onclick="sendFeedback()" style="width:100%">Enviar mensaje</button>
   </div>
 </div>
 
@@ -2230,6 +2249,87 @@ function sendReminder(id) {
   window.open(`https://wa.me/${ph}?text=${encodeURIComponent(msg)}`, '_blank');
   document.getElementById('remModal').classList.remove('open');
   toast('Recordatorio enviado por WhatsApp ✓');
+}
+
+// ── SOPORTE / SUGERENCIAS ──
+// Email al equipo vía api/send-feedback (Resend). El Reply-To lo pone el server
+// desde el JWT verificado; aquí solo van el mensaje y el contexto técnico de triage.
+let _fbCat = null;
+let _fbCooldownUntil = 0;
+
+function showSupport() {
+  if (!CURRENT_USER || CURRENT_USER.is_anonymous || !CURRENT_USER.email) {
+    toast('Crea una cuenta para enviarnos un mensaje'); return;
+  }
+  document.getElementById('fbEmail').textContent = CURRENT_USER.email;
+  _fbErr('');
+  document.getElementById('supportModal').classList.add('open');
+}
+
+function selectFbCat(cat, el) {
+  _fbCat = cat;
+  document.querySelectorAll('#fbCats button').forEach(b => { b.classList.add('bo'); b.classList.remove('bok'); });
+  el.classList.remove('bo'); el.classList.add('bok');
+  _fbErr('');
+}
+
+function _fbErr(msg) {
+  const el = document.getElementById('fbErr');
+  el.textContent = msg || '';
+  el.style.display = msg ? 'block' : 'none';
+}
+
+// Versión de la app: en nativo la da el plugin App (MARKETING_VERSION + build);
+// en web no hay fuente de versión — se reporta 'web'.
+async function _fbVersion() {
+  if (!window.Capacitor?.isNativePlatform()) return 'web';
+  try {
+    const info = await Capacitor.Plugins.App.getInfo();
+    return `${info.version} (build ${info.build})`;
+  } catch { return 'desconocida'; }
+}
+
+async function sendFeedback() {
+  if (!_fbCat) { _fbErr('Elige una categoría.'); return; }
+  const msg = (document.getElementById('fbMsg').value || '').trim();
+  if (!msg) { _fbErr('Escribe un mensaje antes de enviar.'); return; }
+  // Sin rate limiting server-side: cooldown ligero contra doble tap/reenvíos.
+  if (Date.now() < _fbCooldownUntil) { _fbErr('Espera un momento antes de enviar otro mensaje.'); return; }
+  const btn = document.getElementById('fbSend');
+  btn.disabled = true; btn.textContent = 'Enviando…';
+  try {
+    const { data: { session } } = supa ? await supa.auth.getSession() : { data: { session: null } };
+    if (!session || session.user.is_anonymous) { toast('Crea una cuenta para enviarnos un mensaje'); return; }
+    const native = window.Capacitor?.isNativePlatform();
+    const apiBase = native ? 'https://emiti-app.vercel.app' : '';
+    const res = await fetch(`${apiBase}/api/send-feedback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body: JSON.stringify({
+        category: _fbCat,
+        message: msg,
+        name: B?.owner || '',
+        biz: B?.biz || '',
+        context: {
+          version: await _fbVersion(),
+          platform: native ? (Capacitor.getPlatform() === 'ios' ? 'iOS (app nativa)' : Capacitor.getPlatform()) : 'Web',
+          plan: USER_PROFILE?.plan || 'free'
+        }
+      })
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    _fbCooldownUntil = Date.now() + 30000;
+    document.getElementById('fbMsg').value = '';
+    _fbCat = null;
+    document.querySelectorAll('#fbCats button').forEach(b => { b.classList.add('bo'); b.classList.remove('bok'); });
+    document.getElementById('supportModal').classList.remove('open');
+    toast('¡Mensaje enviado! Te responderemos pronto.');
+  } catch (e) {
+    console.warn('[feedback] ', e.message);
+    _fbErr('No se pudo enviar. Intenta de nuevo.');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Enviar mensaje';
+  }
 }
 
 // ── ONBOARDING ──
