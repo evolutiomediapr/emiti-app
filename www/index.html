@@ -2250,6 +2250,7 @@ function boot() {
   checkReminders();
   loadServices();
   refreshPaymentStatuses().catch(e => console.warn('[boot] refreshPayments:', e.message));
+  refreshSignatures().catch(e => console.warn('[boot] refreshSignatures:', e.message));
   generateDueRecurring().catch(e => console.warn('[boot] recurring:', e.message));
   // "Importar de contactos": solo en iOS nativo (el picker vive en EmitContactsPlugin;
   // Safari/desktop no tiene API de contactos confiable, así que queda oculto en web).
@@ -3389,12 +3390,43 @@ async function refreshPaymentStatuses() {
   if (changed) { save(); updateDash(); renderAll(); }
 }
 
+// Pull nube -> local de firmas remotas (misma anatomía que refreshPaymentStatuses):
+// el cliente firma en el visor público y api/sign-document escribe en
+// document_signatures — tabla aparte, NUNCA en el JSON de invoices, así el push
+// wholesale no puede pisarla. Aquí la firma se copia a los campos locales que ya
+// existen (clientSig/clientSigName/clientSigDate) para que preview, PDF e ícono
+// la muestren sin tocar una línea de render. "Firma gana, nunca se degrada":
+// solo se copia si NO hay firma local — una firma capturada en persona no se pisa.
+async function refreshSignatures() {
+  if (!supa || !CURRENT_USER || CURRENT_USER.is_anonymous) return;
+  const candidates = INV.filter(i => i.supaId && i.type === 'estimate' && !i.clientSig);
+  if (!candidates.length) return;
+  // RLS "docsig: owner select own": solo llegan firmas de documentos propios.
+  const { data, error } = await supa.from('document_signatures')
+    .select('invoice_id, signer_name, signature_png, signed_at')
+    .in('invoice_id', candidates.map(i => i.supaId));
+  if (error) { console.warn('[refreshSignatures]', error.message); return; }
+  let changed = false;
+  (data || []).forEach(r => {
+    const local = INV.find(i => i.supaId === r.invoice_id);
+    if (!local || local.clientSig) return;
+    local.clientSig = r.signature_png;      // data-URL png, mismo formato in-app
+    local.clientSigName = r.signer_name;
+    local.clientSigDate = r.signed_at;
+    changed = true;
+  });
+  if (changed) { save(); renderAll(); }
+}
+
 // Re-sincroniza todas las facturas del localStorage a la cuenta activa (post-login)
 async function syncAllInvToSupabase() {
   if (!supa || !CURRENT_USER || CURRENT_USER.is_anonymous) return;
   // Pull antes del push: sin esto el update wholesale pisaría un 'paid'
   // escrito por el webhook entre sesiones.
   await refreshPaymentStatuses().catch(e => console.warn('[syncAll] refreshPayments:', e.message));
+  // Firmas también antes del push: así el JSON que sube ya lleva clientSig y el
+  // preview queda consistente en todos los dispositivos desde el primer sync.
+  await refreshSignatures().catch(e => console.warn('[syncAll] refreshSignatures:', e.message));
   for (const inv of INV) {
     await syncInvToSupabase(inv).catch(e => console.warn('[syncAll]', e.message));
   }
