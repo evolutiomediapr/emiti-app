@@ -259,9 +259,16 @@ function renderDoc(inv, biz, logo, payments) {
   // justPaid sin status confirmado: sin label (el banner ya comunica) — un
   // "Pendiente de pago" junto a "Pago recibido" mientras el webhook procesa
   // sería contradictorio, y afirmar "Pagada" sin la BD sería falsificable.
+  // "Pendiente de pago" es un estado de COBRO: aplica a facturas y, en
+  // cotizaciones, solo si piden depósito/adelanto (ahí sí hay cobro pendiente).
+  // Una cotización normal es un presupuesto a aceptar, no un cobro: sin label.
+  // Mismo criterio client-side que el psheet (inv.deposit.value > 0); el aviso
+  // "Se requiere un depósito" (addCardButtonIfAvailable) es independiente.
+  const wantsDeposit = !!(inv.deposit && parseFloat(inv.deposit.value) > 0);
   const statusLabel = isPaid
     ? `<div class="dstatus paid"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pagada</div>`
     : justPaid ? ''
+    : (isEst && !wantsDeposit) ? ''
     : `<div class="dstatus pending"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Pendiente de pago</div>`;
 
   const infoItems = [
