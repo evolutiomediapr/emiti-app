@@ -658,7 +658,16 @@ async function init() {
 
   CURRENT_INVOICE = inv;
   VIEWED_AT = new Date().toISOString();
-  renderDoc(inv, biz, logo || null, payments || null);
+  // Un doc malformado en la BD (campo faltante/corrupto) lanzaba dentro de
+  // renderDoc y dejaba el spinner "Cargando…" infinito: la línea que lo oculta
+  // vive al final del render. Fail-visible: mejor "Documento no encontrado"
+  // que un colgado sin salida para el cliente.
+  try {
+    renderDoc(inv, biz, logo || null, payments || null);
+  } catch (e) {
+    console.error('[invoice] renderDoc:', e.message);
+    showError();
+  }
 }
 
 init();
