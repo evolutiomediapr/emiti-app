@@ -80,6 +80,12 @@ async function signDocument(req, res, supabase) {
   if (inv.validUntil && new Date().toISOString().split('T')[0] > inv.validUntil) {
     return res.status(410).json({ error: 'La cotización venció' });
   }
+  // Gate Pro con grandfathering: docs nuevos llevan remoteSig explícito en el
+  // JSON; false = el dueño no tiene la feature (free post-corte). Docs legados
+  // sin la clave siguen firmables.
+  if (inv.remoteSig === false) {
+    return res.status(422).json({ error: 'Documento no habilitado para firma' });
+  }
 
   // Evidencia: snapshot de EXACTAMENTE el JSON en la BD al momento de firmar
   // (inmune al overwrite del sync wholesale) + sha256 que prueba integridad.

@@ -40,7 +40,8 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:'Plus Ja
 .ob-card{display:block;width:100%;text-align:left;background:var(--bg);border:1.5px solid var(--bd);border-radius:var(--rs);padding:1rem 1.1rem;cursor:pointer;font-family:inherit;transition:border-color .15s,background .15s}
 .ob-card:hover{border-color:var(--green);background:var(--gxl)}
 .ob-card b{display:block;font-size:.92rem;color:var(--ink);margin-bottom:.15rem}
-.ob-card span{font-size:.76rem;color:var(--mu);line-height:1.4}
+.ob-card .ob-card-sub{font-size:.76rem;color:var(--mu);line-height:1.4}
+.ob-card.on{border-color:var(--green);background:var(--gxl)}
 .ob-dots{display:none;gap:.4rem;justify-content:center;margin-bottom:1rem}
 .ob-dot{width:7px;height:7px;border-radius:50%;background:var(--bd);transition:background .2s}
 .ob-dot.on{background:var(--green)}
@@ -564,8 +565,8 @@ table.pt tr:last-child td{border-bottom:none}
       <h3>¿Qué necesitas hacer primero?</h3>
       <div class="ob-sub">Vamos a crearlo juntos. Toma menos de dos minutos.</div>
       <div class="ob-choice">
-        <button type="button" class="ob-card" onclick="obPick('estimate')"><b>Cotizar un trabajo</b><span>Envíale el precio a tu cliente antes de empezar.</span></button>
-        <button type="button" class="ob-card" onclick="obPick('invoice')"><b>Cobrar un trabajo</b><span>Envía la factura de un trabajo que ya hiciste.</span></button>
+        <button type="button" class="ob-card" onclick="obPick('estimate')"><b>Cotizar un trabajo</b><span class="ob-card-sub">Envíale el precio a tu cliente antes de empezar.</span></button>
+        <button type="button" class="ob-card" onclick="obPick('invoice')"><b>Cobrar un trabajo</b><span class="ob-card-sub">Envía la factura de un trabajo que ya hiciste.</span></button>
       </div>
     </div>
 
@@ -602,6 +603,8 @@ table.pt tr:last-child td{border-bottom:none}
       <div class="f"><label>Descripción del trabajo</label><input type="text" id="ob-desc" placeholder="Instalación de calentador"></div>
       <div class="f"><label>Precio ($)</label><input type="number" id="ob-price" min="0" step="0.01" placeholder="350.00"></div>
       <div class="ob-note">Después puedes agregar más líneas, fotos y materiales.</div>
+      <div style="height:.6rem"></div>
+      <button type="button" class="ob-card" id="ob-dep-card" onclick="obDepositTap()"><b>¿Quieres pedir un adelanto para iniciar? <span class="tpl-pro-badge">PRO</span></b><span class="ob-card-sub">Los negocios que piden depósito cobran más rápido.</span></button>
       <div style="height:.8rem"></div>
       <button class="btn bg bw" onclick="obJobNext()">Ver cómo queda</button>
     </div>
@@ -610,6 +613,7 @@ table.pt tr:last-child td{border-bottom:none}
     <div class="ob-step" id="ob-step-prev">
       <h3>Así lo verá tu cliente</h3>
       <div class="ob-prev-wrap"><div class="psheet" id="ob-psheet"></div></div>
+      <button type="button" class="ob-card" id="ob-sig-card" style="margin-bottom:1rem" onclick="obSigTap()"><b>Deja que tu cliente acepte y firme desde su teléfono. <span class="tpl-pro-badge">PRO</span></b><span class="ob-card-sub">La firma queda guardada en el documento, como un contrato.</span></button>
       <div id="ob-send-main">
         <button class="btn bg bw" id="ob-send-btn" onclick="obSend(this)">Enviar a tu cliente</button>
         <button class="btn bgh bw" style="margin-top:.5rem" onclick="obShow('job')">← Corregir algo</button>
@@ -629,7 +633,12 @@ table.pt tr:last-child td{border-bottom:none}
       <div class="ob-done-ic"><svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#1A7A4A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.27"/></svg></div>
       <h3 id="ob-done-title" style="text-align:center">Tu cotización ya está con tu cliente</h3>
       <div class="ob-sub" style="text-align:center">La encuentras en Inicio cuando la necesites.</div>
-      <button class="btn bg bw" onclick="obFinish()">Ir a Inicio</button>
+      <div style="background:var(--bg);border:1px solid var(--bd);border-radius:var(--rs);padding:1rem 1.1rem;margin-bottom:.8rem;text-align:left">
+        <div style="font-weight:700;font-size:.92rem;color:var(--ink);margin-bottom:.25rem">¿Quieres cobrar con tarjeta?</div>
+        <div style="font-size:.76rem;color:var(--mu);line-height:1.5;margin-bottom:.85rem">Conecta tu cuenta para que tus clientes paguen desde el mismo enlace. También puedes cobrar en efectivo o transferencia, como siempre.</div>
+        <button class="btn bg bw" id="ob-stripe-btn" onclick="connectStripe(this)">Conectar Stripe</button>
+      </div>
+      <button class="btn bo bw" onclick="obFinish()">Ahora no, lo hago después</button>
     </div>
   </div>
   <div class="ob-skip" id="ob-skip" style="display:none"><a onclick="obSkip()">Saltar, prefiero explorar por mi cuenta</a></div>
@@ -751,7 +760,7 @@ table.pt tr:last-child td{border-bottom:none}
       </div>
       <div class="f" id="deposit-wrap" style="margin-top:.1rem">
         <label style="display:flex;align-items:center;gap:.5rem;font-size:.8rem;cursor:pointer;text-transform:none;font-weight:400;letter-spacing:0">
-          <input type="checkbox" id="f-deposit-on" onchange="toggleDepositUI()"> Solicitar depósito / anticipo
+          <input type="checkbox" id="f-deposit-on" onchange="toggleDepositUI()"> Solicitar depósito / anticipo <span class="tpl-pro-badge" id="deposit-pro-badge" style="display:none">PRO</span>
         </label>
         <div id="deposit-detail" style="display:none;margin-top:.5rem">
           <div style="display:flex;gap:.4rem;align-items:center">
@@ -763,6 +772,12 @@ table.pt tr:last-child td{border-bottom:none}
           </div>
           <div style="font-size:.68rem;color:var(--mu);margin-top:.45rem;line-height:1.4">El cliente paga esta parte como depósito; el resto queda como balance. Nota: cobrar en dos pagos añade un cargo fijo de ~$0.30 de Stripe por cada pago.</div>
         </div>
+      </div>
+      <div class="f" id="remotesig-wrap" style="display:none;margin-top:.1rem">
+        <label style="display:flex;align-items:center;gap:.5rem;font-size:.8rem;cursor:pointer;text-transform:none;font-weight:400;letter-spacing:0">
+          <input type="checkbox" id="f-remotesig" onchange="toggleRemoteSigUI()"> Tu cliente puede firmar desde su teléfono <span class="tpl-pro-badge" id="remotesig-pro-badge" style="display:none">PRO</span>
+        </label>
+        <div style="font-size:.68rem;color:var(--mu);margin-top:.35rem;line-height:1.4">La firma queda guardada en la cotización, como un contrato.</div>
       </div>
       <div class="f" id="showmk-wrap" style="display:none">
         <label style="display:flex;align-items:center;gap:.5rem;font-size:.8rem;cursor:pointer">
@@ -1340,6 +1355,20 @@ function isProUser() {
   if (window.Capacitor?.isNativePlatform()) return false;
   return localStorage.getItem(skey('fpr4_pro')) === 'true';
 }
+
+// ── DEPÓSITO Y FIRMA REMOTA: PRO CON GRANDFATHERING ──
+// Ambas features pasan a Pro, pero las cuentas creadas ANTES del corte (deploy
+// de esta fase) las conservan gratis de por vida: había usuarios free usándolas
+// activamente y quitárselas cuesta más que lo que gana el gate. El corte se
+// compara contra profiles.created_at, que asigna el server y el cliente no
+// puede alterar (RLS + default now()).
+const PRO_PERKS_CUTOFF = Date.parse('2026-07-14T03:00:00Z');
+function isLegacyFree() {
+  const c = USER_PROFILE?.created_at;
+  return !!c && Date.parse(c) < PRO_PERKS_CUTOFF;
+}
+function canUseDeposit()   { return isProUser() || isLegacyFree(); }
+function canUseRemoteSig() { return isProUser() || isLegacyFree(); }
 
 // Invoice templates. 'classic' is free; the rest require Pro.
 const TEMPLATES = [
@@ -2504,6 +2533,8 @@ function obShow(step) {
   if (step === 'cli' && window.Capacitor?.isNativePlatform() && Capacitor.getPlatform() === 'ios') {
     document.getElementById('ob-import-btn').style.display = '';
   }
+  if (step === 'job' || step === 'prev') obSyncPerkCards();
+  if (step === 'prev') document.getElementById('ob-sig-card').style.display = est ? '' : 'none';
   if (step === 'prev') obRenderPrev();
   if (step === 'done') {
     document.getElementById('ob-done-title').textContent =
@@ -2514,7 +2545,39 @@ function obShow(step) {
 
 function obPick(type) {
   OB.docType = type;
+  if (OB.sigOn === undefined) OB.sigOn = true;   // default histórico: firmable (si el plan lo permite)
   obShow(B ? 'cli' : 'biz');
+}
+
+// ── Candados suaves del wizard (depósito y firma) ──
+// Nunca bloquean el paso: con el perk son un toggle; sin él abren el modal de
+// upgrade y al cerrarlo el flujo sigue igual.
+function obDepositTap() {
+  if (!canUseDeposit()) { openDepositUpsell(); return; }
+  OB.depositOn = !OB.depositOn; obPersist();
+  obSyncPerkCards();
+}
+
+function obSigTap() {
+  if (!canUseRemoteSig()) { openRemoteSigUpsell(); return; }
+  OB.sigOn = !OB.sigOn; obPersist();
+  obSyncPerkCards();
+}
+
+function obSyncPerkCards() {
+  [
+    { id: 'ob-dep-card', on: !!OB?.depositOn, can: canUseDeposit(),
+      onTxt: 'Activado: se pedirá el 50% del total como adelanto.',
+      offTxt: 'Los negocios que piden depósito cobran más rápido.' },
+    { id: 'ob-sig-card', on: !!OB?.sigOn, can: canUseRemoteSig(),
+      onTxt: 'Activado: tu cliente podrá firmar desde el enlace.',
+      offTxt: 'La firma queda guardada en el documento, como un contrato.' },
+  ].forEach(c => {
+    const el = document.getElementById(c.id); if (!el) return;
+    el.classList.toggle('on', c.can && c.on);
+    const badge = el.querySelector('.tpl-pro-badge'); if (badge) badge.style.display = c.can ? 'none' : '';
+    const sub = el.querySelector('.ob-card-sub'); if (sub) sub.textContent = (c.can && c.on) ? c.onTxt : c.offTxt;
+  });
 }
 
 function obCliNext() {
@@ -2559,6 +2622,11 @@ function obFillForm() {
   document.getElementById('ld1').value = OB.desc || '';
   document.getElementById('lq1').value = '1';
   document.getElementById('lp1').value = OB.price || '';
+  // Perks elegidos en las tarjetas (solo aplican si el plan los permite)
+  const dep = document.getElementById('f-deposit-on');
+  if (dep) dep.checked = !!OB.depositOn && canUseDeposit();   // 50% del total: default de resetForm
+  const rs = document.getElementById('f-remotesig');
+  if (rs) rs.checked = !!OB.sigOn && canUseRemoteSig();
   calc();
 }
 
@@ -2711,6 +2779,8 @@ function setDocType(type, el) {
   el.classList.add('active');
   const vw = document.getElementById('validity-wrap');
   if (vw) vw.style.display = type === 'estimate' ? 'block' : 'none';
+  const rsw = document.getElementById('remotesig-wrap');
+  if (rsw) rsw.style.display = type === 'estimate' ? 'block' : 'none';
   const ivu = document.getElementById('f-ivu');
   if (ivu) { if (type === 'estimate') { ivu.value = '0'; } else { ivu.value = '11.5'; } calc(); }
 }
@@ -2905,6 +2975,12 @@ function getForm() {
     bizSig: BIZ_SIG,
     lines, sub, dsc, ivu, tax, total:taxable+tax, status:'pending',
     showMarkup: document.getElementById('f-showmk')?.checked || false,
+    // Firma remota (cotizaciones): flag EXPLÍCITO true/false — el visor y el
+    // endpoint sign-document lo honran. Docs legados (sin la clave) siguen
+    // firmables para no romper cotizaciones ya enviadas.
+    ...(DOC_TYPE==='estimate'
+      ? { remoteSig: !!(document.getElementById('f-remotesig')?.checked) && canUseRemoteSig() }
+      : {}),
     // Depósito/anticipo (opt-in). Solo se guarda si está activo y con valor > 0;
     // el monto real se computa server-side en pay-invoice.js (nunca del cliente).
     ...((document.getElementById('f-deposit-on')?.checked &&
@@ -3030,6 +3106,11 @@ function resetForm() {
   const dDet=document.getElementById('deposit-detail'); if(dDet) dDet.style.display='none';
   const dVal=document.getElementById('f-deposit-value'); if(dVal) dVal.value='50';
   const dTyp=document.getElementById('f-deposit-type'); if(dTyp) dTyp.value='percent';
+  // Perks con grandfathering: candado visible solo para quien no los tiene.
+  const dBadge=document.getElementById('deposit-pro-badge'); if(dBadge) dBadge.style.display = canUseDeposit() ? 'none' : '';
+  const rsBadge=document.getElementById('remotesig-pro-badge'); if(rsBadge) rsBadge.style.display = canUseRemoteSig() ? 'none' : '';
+  const rsON=document.getElementById('f-remotesig'); if(rsON) rsON.checked = canUseRemoteSig();   // default ON para quien puede (comportamiento histórico)
+  const rsw=document.getElementById('remotesig-wrap'); if(rsw) rsw.style.display='none';
   document.getElementById('liItems').innerHTML=''; LN=0;
   document.getElementById('f-date').value=new Date().toISOString().split('T')[0];
   DOC_TYPE='invoice';
@@ -3690,9 +3771,28 @@ function newInvoiceForClient() {
 
 // Muestra/oculta el detalle de la config de depósito en el form.
 function toggleDepositUI(){
-  const on = document.getElementById('f-deposit-on')?.checked;
+  const box = document.getElementById('f-deposit-on');
+  // Gate suave: se puede tocar, pero sin el perk se revierte y se ofrece Pro.
+  if (box?.checked && !canUseDeposit()) { box.checked = false; openDepositUpsell(); return; }
   const det = document.getElementById('deposit-detail');
-  if (det) det.style.display = on ? 'block' : 'none';
+  if (det) det.style.display = box?.checked ? 'block' : 'none';
+}
+
+function toggleRemoteSigUI(){
+  const box = document.getElementById('f-remotesig');
+  if (box?.checked && !canUseRemoteSig()) { box.checked = false; openRemoteSigUpsell(); }
+}
+
+function openDepositUpsell() {
+  document.getElementById('upg-title').textContent = 'Cobra un adelanto antes de empezar';
+  document.getElementById('upg-msg').textContent = 'Los negocios que piden depósito cobran más rápido. Pide un adelanto en tus cotizaciones y facturas con el plan Pro.';
+  document.getElementById('upgradeModal').classList.add('open');
+}
+
+function openRemoteSigUpsell() {
+  document.getElementById('upg-title').textContent = 'Tu cliente firma desde su teléfono';
+  document.getElementById('upg-msg').textContent = 'Tu cliente acepta y firma la cotización desde el enlace, y la firma queda guardada como un contrato. Disponible con el plan Pro.';
+  document.getElementById('upgradeModal').classList.add('open');
 }
 
 // ── ESPEJO EN NAVEGADOR de lib/payments.js ──────────────────────────────────
@@ -3796,7 +3896,7 @@ async function refreshPaymentStatuses() {
 // solo se copia si NO hay firma local — una firma capturada en persona no se pisa.
 async function refreshSignatures() {
   if (!supa || !CURRENT_USER || CURRENT_USER.is_anonymous) return;
-  const candidates = INV.filter(i => i.supaId && i.type === 'estimate' && !i.clientSig);
+  const candidates = INV.filter(i => i.supaId && i.type === 'estimate' && !i.clientSig && i.remoteSig !== false);
   if (!candidates.length) return;
   // RLS "docsig: owner select own": solo llegan firmas de documentos propios.
   const { data, error } = await supa.from('document_signatures')
@@ -5089,6 +5189,9 @@ function editInv() {
         document.getElementById('f-deposit-type').value = inv.deposit.type === 'fixed' ? 'fixed' : 'percent';
       }
     }
+    // Firma remota: docs legados sin flag cuentan como habilitados (histórico).
+    const rsON = document.getElementById('f-remotesig');
+    if (rsON) rsON.checked = (inv.remoteSig !== undefined ? !!inv.remoteSig : true) && canUseRemoteSig();
     renderPhotoStrip('doc');              // fotos generales del doc en edición
 
     // Mark as editing this invoice
