@@ -34,7 +34,7 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:'Plus Ja
 .ob h3{font-size:1rem;font-weight:700;margin-bottom:1.1rem}
 /* Onboarding guiado (wizard de primer documento) */
 .ob-step{display:none}
-.ob-step.active{display:block}
+.ob-step.active{display:block;animation:up .3s both}
 .ob-sub{font-size:.8rem;color:var(--mu);margin:-.5rem 0 1.1rem;line-height:1.5}
 .ob-choice{display:flex;flex-direction:column;gap:.7rem}
 .ob-card{display:block;width:100%;text-align:left;background:var(--bg);border:1.5px solid var(--bd);border-radius:var(--rs);padding:1rem 1.1rem;cursor:pointer;font-family:inherit;transition:border-color .15s,background .15s}
@@ -696,7 +696,7 @@ table.pt tr:last-child td{border-bottom:none}
     </div>
 
     <div class="rh"><span class="rl">Recientes</span><button class="btn bgh bsm" onclick="go('facturas')">Ver todas →</button></div>
-    <div id="homeList"><div class="empty"><div class="ei"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#C8D5CC" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg></div><p>Aún no hay documentos.<br>Toca <strong>+</strong> para crear el primero.</p></div></div>
+    <div id="homeList"><div class="empty"><div class="ei"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#C8D5CC" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg></div><p>Aún no tienes documentos.</p><button class="btn bg" style="margin-top:.7rem" onclick="fabTap()">Crea tu primer documento</button></div></div>
   </div>
 
   <!-- FACTURAS -->
@@ -4015,7 +4015,7 @@ function renderAll() {
 function updateDash() {
   renderChart();
   const recent=INV.slice(0,3);
-  document.getElementById('homeList').innerHTML=recent.length?recent.map(icard).join(''):`<div class="empty"><div class="ei"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#C8D5CC" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg></div><p>Aún no hay documentos.<br>Toca <strong>+</strong> para crear el primero.</p></div>`;
+  document.getElementById('homeList').innerHTML=recent.length?recent.map(icard).join(''):`<div class="empty"><div class="ei"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#C8D5CC" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg></div><p>Aún no tienes documentos.</p><button class="btn bg" style="margin-top:.7rem" onclick="fabTap()">Crea tu primer documento</button></div>`;
 }
 
 // ── CHART FILTERS ──

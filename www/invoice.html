@@ -551,6 +551,10 @@ function canvasToData(id) {
 async function addSignAreaIfEligible(inv) {
   const slot = document.getElementById('sign-slot');
   if (!slot) return;
+  // Gate Pro con grandfathering: docs nuevos llevan remoteSig explícito;
+  // false = el dueño no tiene la feature. Docs legados (sin flag) siguen
+  // firmables. El server (sign-document) aplica el mismo gate.
+  if (inv.remoteSig === false) return;
   if (inv.clientSig) return;
   if (inv.validUntil && new Date().toISOString().split('T')[0] > inv.validUntil) return;
   let st;
