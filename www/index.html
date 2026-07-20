@@ -53,6 +53,10 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:'Plus Ja
 .ob-prev-wrap .psheet .pt th{font-size:.56rem;padding:0 .3rem .35rem}
 .ob-prev-wrap .psheet .pt td{font-size:.72rem;padding:.45rem .3rem}
 .ob-done-ic{display:flex;justify-content:center;margin:.4rem 0 1rem}
+.ob-item{display:grid;grid-template-columns:1fr 90px 26px;gap:.4rem;align-items:center;margin-bottom:.45rem}
+.ob-item input{padding:.55rem .7rem;font-size:.86rem}
+.ob-item-del{width:26px;height:26px;display:flex;align-items:center;justify-content:center;background:none;border:none;color:var(--mu);cursor:pointer;padding:0}
+.ob-item-del:hover{color:var(--red)}
 
 /* FIELDS */
 .f{margin-bottom:.85rem}
@@ -231,12 +235,11 @@ textarea{resize:vertical;min-height:66px;line-height:1.5}
 .bar{flex:1;border-radius:4px 4px 0 0;min-height:2px;transition:height .4s ease}
 .bar.invoiced{background:var(--gl);border:1.5px solid rgba(26,122,74,.2)}
 .bar.collected{background:var(--green)}
-.bar.expenses{background:var(--red);opacity:.85}
 .bar-lbl{font-size:.55rem;font-weight:600;color:var(--mu);text-align:center;white-space:nowrap}
 .chart-legend{display:flex;gap:1rem;margin-top:.8rem}
 .leg-item{display:flex;align-items:center;gap:.35rem;font-size:.72rem;color:var(--mu)}
 .leg-dot{width:10px;height:10px;border-radius:2px}
-.chart-summary{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-top:.8rem}
+.chart-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;margin-top:.8rem}
 .cs{text-align:center;padding:.6rem;background:var(--bg);border-radius:var(--rs)}
 .cs .cv{font-size:.95rem;font-weight:700;color:var(--ink)}
 .cs .cl{font-size:.62rem;color:var(--mu);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-top:.15rem}
@@ -600,9 +603,14 @@ table.pt tr:last-child td{border-bottom:none}
     <!-- Paso: el trabajo -->
     <div class="ob-step" id="ob-step-job">
       <h3 id="ob-job-title">¿Qué trabajo vas a hacer?</h3>
-      <div class="f"><label>Descripción del trabajo</label><input type="text" id="ob-desc" placeholder="Instalación de calentador"></div>
-      <div class="f"><label>Precio ($)</label><input type="number" id="ob-price" min="0" step="0.01" placeholder="350.00"></div>
-      <div class="ob-note">Después puedes agregar más líneas, fotos y materiales.</div>
+      <div class="f"><label>Servicios o trabajos</label>
+        <div id="ob-items"></div>
+        <button type="button" class="btn bo bsm bw" id="ob-add-item" onclick="obAddItem()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Agregar otro</button>
+      </div>
+      <div class="f"><label>Impuestos (%)</label><input type="number" id="ob-ivu" min="0" step="0.01" placeholder="Ej: 11.5">
+        <div class="ob-note">Escribe tu tasa. Déjalo vacío si no cobras impuesto.</div>
+      </div>
+      <div class="ob-note">Después puedes agregar fotos y materiales.</div>
       <div style="height:.6rem"></div>
       <button type="button" class="ob-card" id="ob-dep-card" onclick="obDepositTap()"><b>¿Quieres pedir un adelanto para iniciar? <span class="tpl-pro-badge">PRO</span></b><span class="ob-card-sub">Los negocios que piden depósito cobran más rápido.</span></button>
       <div style="height:.8rem"></div>
@@ -690,7 +698,6 @@ table.pt tr:last-child td{border-bottom:none}
       <div class="chart-legend">
         <div class="leg-item"><div class="leg-dot" style="background:var(--gl);border:1.5px solid rgba(26,122,74,.2)"></div>Facturado</div>
         <div class="leg-item"><div class="leg-dot" style="background:var(--green)"></div>Cobrado</div>
-        <div class="leg-item"><div class="leg-dot" style="background:var(--red);opacity:.85"></div>Gastos</div>
       </div>
       <div class="chart-summary" id="chartSummary"></div>
     </div>
@@ -2479,7 +2486,7 @@ async function enterApp() {
 // nube — al tocar "Enviar a tu cliente": abandonar a mitad no deja documentos
 // basura. El progreso se guarda en localStorage fpr4_onboard_<uid> para
 // reanudar si la app muere a mitad del flujo.
-let OB = null;          // {step, docType, cli, contact, desc, price} — null = wizard inactivo
+let OB = null;          // {step, docType, cli, contact, items:[{desc,price}], ivu} — null = wizard inactivo
 let OB_CHECKED = null;  // memo por sesión de obShouldRun (evita doble select en login + SIGNED_IN)
 const OB_STEPS = ['q','biz','cli','job','prev'];
 
@@ -2501,7 +2508,10 @@ function obStart() {
   if (!OB || !OB.step) OB = { step: 'q' };
   // Reanudación: rellenar lo ya capturado y saltar pasos que ya no aplican
   const put = (id, v) => { if (v != null && v !== '') { const el = document.getElementById(id); if (el) el.value = v; } };
-  put('ob-cli', OB.cli); put('ob-contact', OB.contact); put('ob-desc', OB.desc); put('ob-price', OB.price);
+  put('ob-cli', OB.cli); put('ob-contact', OB.contact); put('ob-ivu', OB.ivu);
+  // Migración: progreso guardado con el formato viejo (desc/price sueltos)
+  if (!OB.items && (OB.desc || OB.price)) OB.items = [{ desc: OB.desc || '', price: OB.price || '' }];
+  obRenderItems();
   if (OB.step !== 'q' && !OB.docType) OB.step = 'q';
   if (OB.step === 'done') OB.step = 'prev';        // el preview se re-materializa
   if (!B && OB.step !== 'q') OB.step = 'biz';      // sin negocio no hay pasos posteriores
@@ -2588,12 +2598,63 @@ function obCliNext() {
   obShow('job');
 }
 
+// ── Items del wizard (hasta 10 líneas) ──
+const OB_MAX_ITEMS = 10;
+
+function obItemsSync() {
+  if (!OB || !OB.items) return;
+  OB.items = OB.items.map((it, i) => ({
+    desc: (document.getElementById('ob-desc-' + i)?.value ?? it.desc ?? '').trim(),
+    price: document.getElementById('ob-price-' + i)?.value ?? it.price ?? ''
+  }));
+}
+
+function obRenderItems() {
+  const host = document.getElementById('ob-items'); if (!host || !OB) return;
+  if (!OB.items || !OB.items.length) OB.items = [{ desc: '', price: '' }];
+  host.innerHTML = OB.items.map((it, i) => `<div class="ob-item">
+    <input type="text" id="ob-desc-${i}" placeholder="Instalación de calentador">
+    <input type="number" id="ob-price-${i}" min="0" step="0.01" placeholder="350.00">
+    ${i === 0 ? '<span></span>' : `<button type="button" class="ob-item-del" onclick="obRmItem(${i})" aria-label="Eliminar servicio"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>`}
+  </div>`).join('');
+  // Valores por DOM (no por atributo): el texto del usuario no pasa por HTML
+  OB.items.forEach((it, i) => {
+    document.getElementById('ob-desc-' + i).value = it.desc || '';
+    document.getElementById('ob-price-' + i).value = it.price || '';
+  });
+  const add = document.getElementById('ob-add-item');
+  if (add) add.style.display = OB.items.length >= OB_MAX_ITEMS ? 'none' : '';
+}
+
+function obAddItem() {
+  obItemsSync();
+  if (OB.items.length >= OB_MAX_ITEMS) { toast('Máximo 10 servicios'); return; }
+  OB.items.push({ desc: '', price: '' });
+  obPersist(); obRenderItems();
+  document.getElementById('ob-desc-' + (OB.items.length - 1))?.focus();
+}
+
+function obRmItem(i) {
+  obItemsSync();
+  if (i === 0) return;
+  OB.items.splice(i, 1);
+  obPersist(); obRenderItems();
+}
+
 function obJobNext() {
-  const desc = document.getElementById('ob-desc').value.trim();
-  const price = parseFloat(document.getElementById('ob-price').value);
-  if (!desc) { toast('Escribe qué trabajo es'); return; }
-  if (!(price > 0)) { toast('Escribe el precio del trabajo'); return; }
-  OB.desc = desc; OB.price = price;
+  obItemsSync();
+  const first = OB.items[0] || { desc: '', price: '' };
+  if (!first.desc) { toast('Escribe qué trabajo es'); return; }
+  if (!(parseFloat(first.price) > 0)) { toast('Escribe el precio del trabajo'); return; }
+  // Filas extra: las vacías se descartan; las a medias detienen el paso
+  const rows = OB.items.filter((it, i) => i === 0 || it.desc || it.price !== '');
+  if (rows.some(it => !it.desc || !(parseFloat(it.price) > 0))) {
+    toast('Completa descripción y precio de cada servicio'); return;
+  }
+  const ivuStr = document.getElementById('ob-ivu').value.trim();
+  if (ivuStr !== '' && !(parseFloat(ivuStr) >= 0)) { toast('El impuesto debe ser un número válido'); return; }
+  OB.items = rows; OB.ivu = ivuStr;
+  obRenderItems();
   obShow('prev');
 }
 
@@ -2613,15 +2674,22 @@ async function obImportContact() {
 // que getForm() produzca el documento con la MISMA numeración, slug, defaults
 // e impuestos que el flujo normal — cero lógica duplicada.
 function obFillForm() {
-  resetForm(); addLi();
+  resetForm();
   setDocType(OB.docType, document.getElementById(OB.docType === 'estimate' ? 'tab-estimate' : 'tab-invoice'));
   document.getElementById('f-cli').value = OB.cli || '';
   const c = (OB.contact || '').trim();
   if (c.includes('@')) document.getElementById('f-email').value = c;
   else document.getElementById('f-tel').value = c;
-  document.getElementById('ld1').value = OB.desc || '';
-  document.getElementById('lq1').value = '1';
-  document.getElementById('lp1').value = OB.price || '';
+  const items = (OB.items && OB.items.length) ? OB.items : [{ desc: OB.desc, price: OB.price }];
+  items.forEach(it => {
+    addLi();
+    const n = LN;   // resetForm deja LN=0: las líneas quedan 1..n
+    document.getElementById('ld' + n).value = it.desc || '';
+    document.getElementById('lq' + n).value = '1';
+    document.getElementById('lp' + n).value = it.price || '';
+  });
+  // Impuesto del wizard: vacío = 0% (anula el 11.5 por defecto de setDocType/getForm)
+  document.getElementById('f-ivu').value = (OB.ivu != null && OB.ivu !== '') ? OB.ivu : '0';
   // Perks elegidos en las tarjetas (solo aplican si el plan los permite)
   const dep = document.getElementById('f-deposit-on');
   if (dep) dep.checked = !!OB.depositOn && canUseDeposit();   // 50% del total: default de resetForm
@@ -4122,22 +4190,17 @@ function getFilteredData() {
       const d = new Date(inv.date + 'T12:00:00');
       return d >= b.start && d <= b.end;
     });
-    const exps = EXPENSES.filter(e => {
-      const d = new Date((e.date || '') + 'T12:00:00');
-      return d >= b.start && d <= b.end;
-    });
     return {
       label: b.label,
       invoiced:  invs.reduce((a,v)=>a+v.total,0),
       // LIMITACIÓN CONSCIENTE FASE 1 (ver también renderChart): "cobrado" excluye
       // depósitos de facturas aún 'partial'. Fase 2 sumaría pmtPaidCents.
-      collected: invs.filter(v=>v.status==='paid').reduce((a,v)=>a+v.total,0),
-      expenses:  exps.reduce((a,e)=>a+(parseFloat(e.total)||0),0)
+      collected: invs.filter(v=>v.status==='paid').reduce((a,v)=>a+v.total,0)
     };
   });
 }
 
-const CHART_TITLES = { month:'Ingresos y gastos — este mes', week:'Ingresos y gastos — esta semana', year:'Ingresos y gastos — este año', custom:'Ingresos y gastos — personalizado' };
+const CHART_TITLES = { month:'Ingresos — este mes', week:'Ingresos — esta semana', year:'Ingresos — este año', custom:'Ingresos — personalizado' };
 
 // Tap en una barra: las tarjetas pasan a mostrar solo ese bucket; repetir el
 // tap (o cambiar de tab) vuelve al agregado del periodo.
@@ -4152,9 +4215,9 @@ function renderChart() {
   if (chartSelectedBar != null && chartSelectedBar >= data.length) chartSelectedBar = null;
   const sel = chartSelectedBar;
   const titleEl = document.getElementById('chartTitle');
-  if (titleEl) titleEl.textContent = (CHART_TITLES[chartFilter] || 'Ingresos y gastos') + (sel != null ? ` · ${data[sel].label}` : '');
+  if (titleEl) titleEl.textContent = (CHART_TITLES[chartFilter] || 'Ingresos') + (sel != null ? ` · ${data[sel].label}` : '');
 
-  const max=Math.max(...data.map(d=>Math.max(d.invoiced,d.expenses)),1);
+  const max=Math.max(...data.map(d=>d.invoiced),1);
   const chart=document.getElementById('barChart'); if(!chart) return;
   chart.classList.toggle('has-sel', sel != null);
   chart.innerHTML='';
@@ -4163,12 +4226,10 @@ function renderChart() {
     col.onclick=()=>selectChartBar(i);
     const invH=Math.max((d.invoiced/max)*80,d.invoiced>0?4:0);
     const colH=Math.max((d.collected/max)*80,d.collected>0?4:0);
-    const expH=Math.max((d.expenses/max)*80,d.expenses>0?4:0);
     col.innerHTML=`
       <div class="bar-group">
         <div class="bar invoiced" style="height:${invH}px" title="Facturado: $${d.invoiced.toFixed(0)}"></div>
         <div class="bar collected" style="height:${colH}px" title="Cobrado: $${d.collected.toFixed(0)}"></div>
-        <div class="bar expenses" style="height:${expH}px" title="Gastos: $${d.expenses.toFixed(0)}"></div>
       </div>
       <div class="bar-lbl">${d.label}</div>
     `;
@@ -4177,14 +4238,12 @@ function renderChart() {
   // Tarjetas: bucket seleccionado, o agregado del periodo completo
   const src = sel != null ? data[sel] : {
     invoiced:  data.reduce((a,d)=>a+d.invoiced,0),
-    collected: data.reduce((a,d)=>a+d.collected,0),
-    expenses:  data.reduce((a,d)=>a+d.expenses,0)
+    collected: data.reduce((a,d)=>a+d.collected,0)
   };
   document.getElementById('chartSummary').innerHTML=`
     <div class="cs"><div class="cv">$${src.invoiced.toFixed(0)}</div><div class="cl">Facturado</div></div>
     <div class="cs"><div class="cv" style="color:var(--green)">$${src.collected.toFixed(0)}</div><div class="cl">Cobrado</div></div>
-    <div class="cs"><div class="cv" style="color:var(--am)">$${(src.invoiced-src.collected).toFixed(0)}</div><div class="cl">Pendiente</div></div>
-    <div class="cs"><div class="cv" style="color:var(--red)">$${src.expenses.toFixed(0)}</div><div class="cl">Gastos</div></div>
+    <div class="cs"><div class="cv" style="color:var(--am)">$${(src.invoiced-src.collected).toFixed(0)}</div><div class="cl">Por Cobrar</div></div>
   `;
 }
 
@@ -4613,7 +4672,6 @@ async function loadExpenses() {
   if (error) { console.warn('[gastos] load:', error.message); return; }
   EXPENSES = data || [];
   renderGastos();
-  renderChart();   // la serie de gastos del dashboard depende de EXPENSES
 }
 
 function fmtExpDate(d) {
